@@ -1,0 +1,4 @@
+node_modules/
+*.vsix
+*.map
+.DS_Store

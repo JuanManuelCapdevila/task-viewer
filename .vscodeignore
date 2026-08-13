@@ -1,0 +1,5 @@
+.vscode/**
+.claude/**
+.gitignore
+**/*.map
+*.vsix
