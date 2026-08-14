@@ -23,11 +23,17 @@ function nonce() {
 // 'pixel' es el único que les da caras distintas a propósito (estética
 // juego); el resto de los presets unifica todo a la misma fuente para no
 // dejar mezclas raras.
+// decorative: la sombra dura sin blur (2px 2px 0 / 1px 1px 0) está afinada
+// para las fuentes pixel-art de trazo grueso. Con cualquier otra fuente
+// (system UI, o algo que el usuario tipeó a mano como 'Georgia') la misma
+// sombra hace que el texto se vea "relleno"/borroneado, así que solo el
+// preset 'pixel' la deja activa — el resto la apaga en buildHtml().
 const FONT_PRESETS = {
   pixel: {
     content: "'Pixelify Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     heading: "'Press Start 2P', 'Pixelify Sans', monospace",
-    mono: "'Pixelify Sans', monospace"
+    mono: "'Pixelify Sans', monospace",
+    decorative: true
   },
   'neo-retro': {
     content: "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -77,6 +83,8 @@ function buildHtml(webview, extensionUri) {
   const n = nonce();
   const theme = resolveTheme();
   const fonts = resolveFontFamilies(theme);
+  const headingShadow = fonts.decorative ? '2px 2px 0 var(--wood-darker)' : 'none';
+  const chipShadow = fonts.decorative ? '1px 1px 0 rgba(0, 0, 0, .3)' : 'none';
 
   return html
     .replace(/{{cspSource}}/g, webview.cspSource)
@@ -87,6 +95,8 @@ function buildHtml(webview, extensionUri) {
     .replace(/{{contentFontFamily}}/g, fonts.content)
     .replace(/{{headingFontFamily}}/g, fonts.heading)
     .replace(/{{monoFontFamily}}/g, fonts.mono)
+    .replace(/{{headingShadow}}/g, headingShadow)
+    .replace(/{{chipShadow}}/g, chipShadow)
     .replace(/{{pixelify400Uri}}/g, vendorUri('fonts', 'pixelify-sans-400.woff2'))
     .replace(/{{pixelify500Uri}}/g, vendorUri('fonts', 'pixelify-sans-500.woff2'))
     .replace(/{{pixelify600Uri}}/g, vendorUri('fonts', 'pixelify-sans-600.woff2'))

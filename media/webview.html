@@ -51,6 +51,14 @@
     --mono-font: {{monoFontFamily}};
     --sublabel-font: var(--mono-font);
     --heading-transform: none;
+    /* Sombra dura pensada para las fuentes pixel-art (Press Start 2P /
+       Pixelify Sans, con trazos gruesos donde la sombra "encaja"). Con una
+       fuente fina (serif custom, system UI) la misma sombra sin blur hace
+       que el texto se vea grueso/relleno — por eso extension.js la apaga
+       (--heading-shadow/--chip-shadow: none) apenas el usuario elige una
+       tipografía que no sea la del preset 'pixel'. */
+    --heading-shadow: {{headingShadow}};
+    --chip-shadow: {{chipShadow}};
 
     /* ---- variables "estructurales": lo que distingue la piel pixel-art
        de otras pieles (neo-retro, etc.) más allá de la paleta de color.
@@ -83,7 +91,6 @@
     background-size: var(--page-bg-size);
     background-attachment: fixed;
     color: var(--text);
-    image-rendering: pixelated;
   }
 
   /* ---------- marco general tipo "consola / cofre" (pixel) o panel recto (neo-retro) ---------- */
@@ -115,7 +122,7 @@
     line-height: 1.5;
     margin: 0;
     color: var(--parchment);
-    text-shadow: 2px 2px 0 var(--wood-darker);
+    text-shadow: var(--heading-shadow);
     letter-spacing: 0.5px;
   }
   header h1 .sprout { display: inline-block; animation: bob 2.2s ease-in-out infinite; }
@@ -193,7 +200,7 @@
     cursor: pointer;
     font-size: 13px;
     box-shadow: var(--btn-shadow);
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, .3);
+    text-shadow: var(--chip-shadow);
     transition: transform .05s ease;
   }
   button:hover { filter: brightness(1.1); }
@@ -225,7 +232,7 @@
     text-transform: uppercase;
     letter-spacing: .06em;
     white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, .35);
+    text-shadow: var(--chip-shadow);
   }
   tbody td {
     padding: 9px 12px;
@@ -294,7 +301,7 @@
     color: var(--parchment);
     cursor: pointer;
     white-space: nowrap;
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, .3);
+    text-shadow: var(--chip-shadow);
     transform: translateY(2px);
   }
   .tab:hover { filter: brightness(1.12); }
@@ -414,7 +421,7 @@
   .diagram-toolbar .dz-level {
     font-size: 12px;
     color: var(--parchment);
-    text-shadow: 1px 1px 0 rgba(0, 0, 0, .3);
+    text-shadow: var(--chip-shadow);
     min-width: 44px;
     text-align: center;
     font-variant-numeric: tabular-nums;
@@ -490,6 +497,8 @@
       linear-gradient(90deg, rgba(0, 0, 0, .05) 1px, transparent 1px);
     --page-bg-size: 40px 40px;
     --heading-transform: uppercase;
+    --heading-shadow: none;
+    --chip-shadow: none;
   }
   /* El marco pixel usa .game-frame como "borde" de color sólido (padding +
      background); en neo-retro ese mismo elemento pasa a ser un panel recto

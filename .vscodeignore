@@ -3,3 +3,5 @@
 .gitignore
 **/*.map
 *.vsix
+task-viewer-1.0.0/**
+design_1.md
