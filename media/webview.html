@@ -64,13 +64,15 @@
        de otras pieles (neo-retro, etc.) más allá de la paleta de color.
        Cada tema redefine este bloque completo bajo un selector de body. ---- */
     --bar-bg: linear-gradient(180deg, var(--wood-light), var(--wood));
+    --frame-notch: 12px;
+    --frame-border: 4px;
     --frame-clip: polygon(
-      0 12px, 12px 12px, 12px 0,
-      calc(100% - 12px) 0, calc(100% - 12px) 12px, 100% 12px,
-      100% calc(100% - 12px), calc(100% - 12px) calc(100% - 12px), calc(100% - 12px) 100%,
-      12px 100%, 12px calc(100% - 12px), 0 calc(100% - 12px)
+      0 var(--frame-notch), var(--frame-notch) var(--frame-notch), var(--frame-notch) 0,
+      calc(100% - var(--frame-notch)) 0, calc(100% - var(--frame-notch)) var(--frame-notch), 100% var(--frame-notch),
+      100% calc(100% - var(--frame-notch)), calc(100% - var(--frame-notch)) calc(100% - var(--frame-notch)), calc(100% - var(--frame-notch)) 100%,
+      var(--frame-notch) 100%, var(--frame-notch) calc(100% - var(--frame-notch)), 0 calc(100% - var(--frame-notch))
     );
-    --frame-shadow: 0 0 0 4px var(--wood-darker), 0 10px 0 rgba(0, 0, 0, .28), 0 14px 18px rgba(0, 0, 0, .35);
+    --frame-shadow: 0 10px 0 rgba(0, 0, 0, .28), 0 14px 18px rgba(0, 0, 0, .35);
     --btn-shadow: inset 1px 1px 0 rgba(255, 255, 255, .35), inset -2px -2px 0 rgba(0, 0, 0, .25), 0 3px 0 var(--wood-darker);
     --btn-shadow-active: inset 1px 1px 0 rgba(255, 255, 255, .35), inset -2px -2px 0 rgba(0, 0, 0, .25), 0 0 0 var(--wood-darker);
     --btn-active-transform: translateY(3px);
@@ -104,6 +106,26 @@
     box-shadow: var(--frame-shadow);
     clip-path: var(--frame-clip);
   }
+  /* Borde sólido detrás del marco: el box-shadow no sirve para esto porque
+     clip-path recorta también la sombra, y como el spread es un rectángulo
+     uniforme se corta justo en la diagonal de cada esquina recortada,
+     dejando huecos donde se cuela el fondo. Esta capa dibuja la misma forma
+     agrandada --frame-border en cada lado, así el borde queda sólido en
+     toda la silueta, incluidas las esquinas. */
+  .game-frame::before {
+    content: '';
+    position: absolute;
+    inset: calc(var(--frame-border) * -1);
+    background: var(--wood-darker);
+    clip-path: polygon(
+      0 calc(var(--frame-notch) + var(--frame-border)), calc(var(--frame-notch) + var(--frame-border)) calc(var(--frame-notch) + var(--frame-border)), calc(var(--frame-notch) + var(--frame-border)) 0,
+      calc(100% - var(--frame-notch) - var(--frame-border)) 0, calc(100% - var(--frame-notch) - var(--frame-border)) calc(var(--frame-notch) + var(--frame-border)), 100% calc(var(--frame-notch) + var(--frame-border)),
+      100% calc(100% - var(--frame-notch) - var(--frame-border)), calc(100% - var(--frame-notch) - var(--frame-border)) calc(100% - var(--frame-notch) - var(--frame-border)), calc(100% - var(--frame-notch) - var(--frame-border)) 100%,
+      calc(var(--frame-notch) + var(--frame-border)) 100%, calc(var(--frame-notch) + var(--frame-border)) calc(100% - var(--frame-notch) - var(--frame-border)), 0 calc(100% - var(--frame-notch) - var(--frame-border))
+    );
+    z-index: -1;
+  }
+  body.theme-neo-retro .game-frame::before { content: none; }
 
   header {
     display: flex;
@@ -131,12 +153,17 @@
     50% { transform: translateY(-3px) rotate(-6deg); }
   }
   header .path {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
     color: var(--parchment);
     opacity: .75;
     font-size: 11px;
     font-family: monospace;
     margin-top: 4px;
   }
+  header .path #root-path.unset { font-style: italic; }
   header .subtitle {
     font-family: var(--sublabel-font);
     font-size: 11px;
@@ -213,10 +240,40 @@
     flex: 1 1 auto;
     min-height: 0;
     display: grid;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
     background: var(--parchment);
     overflow: hidden;
   }
+
+  /* Barra para plegar el listado y darle todo el alto al documento. Resetea
+     el `button` de la toolbar: es un control de layout, no una acción. */
+  .table-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 12px;
+    border: none;
+    border-bottom: 2px solid var(--wood-dark);
+    background: var(--parchment-alt);
+    color: var(--muted);
+    box-shadow: none;
+    text-shadow: none;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    text-align: left;
+    cursor: pointer;
+  }
+  .table-toggle:hover { filter: none; background: var(--accent-bg); color: var(--ink); }
+  .table-toggle:active { transform: none; box-shadow: none; }
+  .table-toggle .caret { font-size: 10px; transition: transform .15s ease; }
+  /* min-width:0 + ellipsis: plegado el label lleva el título de la task
+     abierta, que puede ser largo. */
+  .table-toggle .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  body.tasks-collapsed .table-toggle .caret { transform: rotate(-90deg); }
+  body.tasks-collapsed .table-wrap { display: none; }
 
   .table-wrap { overflow: auto; border-bottom: 4px solid var(--wood-dark); max-height: 42vh; background: var(--parchment); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -249,7 +306,22 @@
   }
   tbody tr.selected td:first-child::before { content: '▶ '; color: var(--gold-dark); }
 
-  code { font-family: var(--mono-font); }
+  /* VS Code inyecta en cada webview un `@layer vscode-default` con, entre
+     otras, `code { color; background-color; padding; border-radius }`
+     resueltas contra el tema del *editor*. Al vivir en una cascade layer,
+     cualquier regla nuestra sin capa le gana — pero solo en las propiedades
+     que declaremos explícitamente. Declarando únicamente font-family, el
+     resto se colaba: con un tema de editor oscuro, el <code> del id de cada
+     task quedaba como un bloque negro sobre el fondo claro del visor.
+     Mismo motivo para fijar el color de los links. */
+  code {
+    font-family: var(--mono-font);
+    color: inherit;
+    background: none;
+    padding: 0;
+    border-radius: 0;
+  }
+  a, a code { color: var(--accent); }
 
   .badge {
     display: inline-flex;
@@ -364,16 +436,121 @@
   }
   .doc-inner li.task-list-item input[type="checkbox"]:disabled { cursor: wait; opacity: .5; }
   .doc-inner .other-editable {
-    display: inline;
-    min-width: 60px;
+    display: inline-block;
+    min-width: 140px;
     padding: 0 3px;
     border-bottom: 1px dashed var(--muted);
     cursor: text;
     outline: none;
   }
+  /* El `______` de la plantilla se muestra como placeholder y no como texto
+     real, así se puede tipear directo sin tener que borrarlo primero. */
+  .doc-inner .other-editable:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted);
+    opacity: .75;
+  }
   .doc-inner .other-editable:hover { border-bottom-color: var(--gold-dark); }
   .doc-inner .other-editable:focus { border-bottom: 1px solid var(--leaf-dark); background: var(--accent-bg); }
   .doc-inner .other-editable.saving { opacity: .6; }
+
+  /* ---------------------------------------------------------------------
+     Tablero de status.md (plantilla de la skill simple-spec-builder): las
+     5 etapas como stepper y la tabla de specs como fichas de estado. Todo
+     se expresa con las variables del tema, así que las tres pieles
+     (pixel / neo-retro / clean) lo heredan sin reglas propias.
+     --------------------------------------------------------------------- */
+  .status-panel { margin: 0 0 26px; border: 2px solid var(--wood-dark); background: var(--panel); }
+  .status-section + .status-section { border-top: 2px solid var(--wood-dark); }
+  .status-section { padding: 14px 16px; }
+  .status-panel > .status-section > h3 {
+    margin: 0 0 12px;
+    font-family: var(--heading-font);
+    text-transform: var(--heading-transform);
+    font-size: 12px;
+    letter-spacing: .06em;
+    color: var(--muted);
+  }
+
+  .status-meter { display: flex; align-items: center; gap: 12px; }
+  .status-meter .status-pct {
+    font-family: var(--mono-font);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    min-width: 62px;
+    color: var(--accent);
+  }
+  .status-track { flex: 1; height: 14px; background: var(--code-bg); border: 2px solid var(--wood-dark); }
+  /* display:block explícito: .status-track es flex *item* pero no flex
+     container, así que su hijo <span> seguiría siendo inline e ignoraría
+     el height/width que le da el relleno de la barra. */
+  .status-fill { display: block; height: 100%; background: var(--leaf); transition: width .25s ease; }
+  .status-panel.is-complete .status-fill { background: var(--leaf-dark); }
+
+  .status-stage { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; }
+  .status-stage + .status-stage { border-top: 1px dashed var(--parchment-alt); }
+  .status-stage .mark {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-family: var(--mono-font);
+    border: 2px solid var(--wood-dark);
+    background: var(--code-bg);
+    color: var(--muted);
+  }
+  .status-stage.is-done .mark { background: var(--leaf); border-color: var(--leaf-dark); color: var(--parchment); }
+  .status-stage.is-current .mark { background: var(--gold); border-color: var(--gold-dark); color: var(--ink); }
+  .status-stage .body { flex: 1; min-width: 0; }
+  .status-stage .name { display: block; font-weight: 700; font-size: 13.5px; }
+  .status-stage.is-todo .name { color: var(--muted); font-weight: 600; }
+  .status-stage .note { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.5; }
+  .status-stage .note code { font-size: .92em; }
+  .status-panel .tally {
+    flex: 0 0 auto;
+    font-family: var(--mono-font);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    padding: 1px 8px;
+    border: 2px solid var(--wood-dark);
+    background: var(--code-bg);
+  }
+
+  .status-spec { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; }
+  .status-spec + .status-spec { border-top: 1px dashed var(--parchment-alt); }
+  .status-spec .num {
+    flex: 0 0 auto;
+    font-family: var(--mono-font);
+    font-size: 12px;
+    padding: 1px 7px;
+    border: 2px solid var(--wood-dark);
+    background: var(--code-bg);
+  }
+  .status-spec .name { flex: 1; min-width: 0; font-size: 13.5px; word-break: break-word; }
+  .status-spec .state {
+    flex: 0 0 auto;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border: 2px solid var(--wood-dark);
+    white-space: nowrap;
+  }
+  .status-spec.is-done .state { background: var(--leaf); border-color: var(--leaf-dark); color: var(--parchment); }
+  .status-spec.is-wip .state { background: var(--gold); border-color: var(--gold-dark); color: var(--ink); }
+  .status-spec.is-todo .state { background: var(--code-bg); color: var(--muted); }
+  .status-spec.is-todo .name { color: var(--muted); }
+
+  body.theme-clean .status-panel { border: 1px solid var(--wood-dark); }
+  body.theme-clean .status-section + .status-section { border-top: 1px solid var(--wood-dark); }
+  body.theme-clean .status-track,
+  body.theme-clean .status-stage .mark,
+  body.theme-clean .status-panel .tally,
+  body.theme-clean .status-spec .num,
+  body.theme-clean .status-spec .state { border-width: 1px; }
+
   .save-toast {
     position: fixed;
     bottom: 18px;
@@ -484,6 +661,10 @@
     --leaf-dark: #005596;
     --heart: #e11927;
     --code-bg: #f1f1ee;
+    --text: var(--ink);
+    --panel: var(--parchment);
+    --accent: var(--leaf-dark);
+    --accent-bg: var(--parchment-alt);
 
     --bar-bg: var(--wood-dark);
     --frame-clip: none;
@@ -504,33 +685,274 @@
      background); en neo-retro ese mismo elemento pasa a ser un panel recto
      con sombra dura — clip-path: none ya lo deja rectangular. */
   body.theme-neo-retro .game-frame { padding: 4px; }
+
+  /* ---------------------------------------------------------------------
+     Tema "Clean": sin textura, sin sombras duras, sin degradés, sin
+     esquinas recortadas ni marcos decorativos. Solo redefinir las
+     variables de :root no alcanza acá porque varios componentes traen
+     sombras/bordes/dashed-lines "a mano" (no expresados como variable) —
+     este bloque los neutraliza explícitamente, además de ocultar los
+     elementos puramente decorativos (.deco, animación del brote, marcador
+     ▶ de fila seleccionada, iconos de estado vacío).
+     --------------------------------------------------------------------- */
+  body.theme-clean {
+    --wood: #f6f8fa;
+    --wood-dark: #d0d7de;
+    --wood-darker: #24292f;
+    --wood-light: #ffffff;
+    --parchment: #ffffff;
+    --parchment-alt: #f6f8fa;
+    --ink: #1f2328;
+    --muted: #6e7781;
+    --gold: #0969da;
+    --gold-dark: #0757ba;
+    --leaf: #0969da;
+    --leaf-dark: #0757ba;
+    --heart: #cf222e;
+    --code-bg: #f6f8fa;
+    --text: var(--ink);
+    --panel: var(--parchment);
+    --accent: var(--leaf-dark);
+    --accent-bg: var(--parchment-alt);
+
+    --bar-bg: #ffffff;
+    --frame-notch: 0px;
+    --frame-border: 0px;
+    --frame-clip: none;
+    --frame-shadow: none;
+    --btn-shadow: none;
+    --btn-shadow-active: none;
+    --btn-active-transform: none;
+    --page-bg-color: #ffffff;
+    --page-bg-image: none;
+    --page-bg-size: auto;
+  }
+  body.theme-clean .game-frame { padding: 0; border: 1px solid var(--wood-dark); }
+  body.theme-clean .game-frame::before { content: none; }
+  body.theme-clean header { border-bottom: 1px solid var(--wood-dark); }
+  body.theme-clean header h1,
+  body.theme-clean header .path,
+  body.theme-clean header .subtitle { color: var(--ink); opacity: 1; }
+  body.theme-clean .deco { display: none; }
+  body.theme-clean .sprout { animation: none; }
+  body.theme-clean .stat-chip {
+    background: var(--parchment-alt);
+    color: var(--ink);
+    border: 1px solid var(--wood-dark);
+    box-shadow: none;
+  }
+  body.theme-clean select#project-select,
+  body.theme-clean input[type="search"] {
+    border: 1px solid var(--wood-dark);
+    box-shadow: none;
+  }
+  body.theme-clean select#project-select:focus,
+  body.theme-clean input[type="search"]:focus {
+    box-shadow: 0 0 0 2px rgba(9, 105, 218, .3);
+  }
+  body.theme-clean button {
+    border: 1px solid var(--wood-dark);
+    background: var(--parchment-alt);
+    color: var(--ink);
+  }
+  body.theme-clean button:hover { filter: none; background: var(--wood-dark); }
+  /* `body.theme-clean button` gana en especificidad y en orden al reset de
+     .table-toggle, así que la barra necesita su propia regla en el tema. */
+  body.theme-clean .table-toggle {
+    border: none;
+    border-bottom: 1px solid var(--wood-dark);
+    background: var(--parchment-alt);
+    color: var(--muted);
+  }
+  body.theme-clean .table-toggle:hover { background: var(--accent-bg); color: var(--ink); }
+  body.theme-clean thead th {
+    background: var(--parchment-alt);
+    color: var(--ink);
+    border-bottom: 1px solid var(--wood-dark);
+    text-transform: none;
+    letter-spacing: normal;
+    text-shadow: none;
+  }
+  body.theme-clean tbody td { border-bottom: 1px solid var(--parchment-alt); }
+  body.theme-clean tbody tr:hover { box-shadow: none; background: var(--parchment-alt); }
+  body.theme-clean tbody tr.selected {
+    background: var(--accent-bg);
+    box-shadow: inset 2px 0 0 var(--gold);
+  }
+  body.theme-clean tbody tr.selected td:first-child::before { content: none; }
+  body.theme-clean .badge, body.theme-clean .gem {
+    background: var(--parchment-alt);
+    color: var(--ink);
+    border: 1px solid var(--wood-dark);
+    box-shadow: none;
+  }
+  body.theme-clean .gem.lit { box-shadow: none; opacity: 1; }
+  body.theme-clean .empty::before, body.theme-clean .placeholder::before { display: none; }
+  body.theme-clean .tabs { border-bottom: 1px solid var(--wood-dark); background: var(--parchment); }
+  body.theme-clean .tab {
+    border: 1px solid var(--wood-dark);
+    border-bottom: none;
+    background: var(--parchment-alt);
+    color: var(--ink);
+    text-shadow: none;
+  }
+  body.theme-clean .tab:hover { filter: none; background: var(--wood-dark); }
+  body.theme-clean .tab.active { background: var(--parchment); border-color: var(--gold); }
+  body.theme-clean .doc { background-image: none; }
+  body.theme-clean .doc-inner h1 { border-bottom: 1px solid var(--wood-dark); }
+  body.theme-clean .doc-inner h2 { border-left: 3px solid var(--gold); }
+  body.theme-clean .doc-inner code { border: 1px solid var(--wood-dark); }
+  body.theme-clean .doc-inner pre { border: 1px solid var(--wood-dark); box-shadow: none; }
+  body.theme-clean .doc-inner th, body.theme-clean .doc-inner td { border: 1px solid var(--wood-dark); }
+  body.theme-clean .save-toast { box-shadow: none; border: 1px solid var(--wood-dark); }
+  body.theme-clean .diagram-frame { border: 1px solid var(--wood-dark); box-shadow: none; }
+  body.theme-clean .diagram-toolbar { border-bottom: 1px solid var(--wood-dark); }
+  body.theme-clean .diagram-toolbar .dz-level,
+  body.theme-clean .diagram-toolbar .dz-hint { color: var(--ink); text-shadow: none; }
+  body.theme-clean ::-webkit-scrollbar { width: 10px; height: 10px; }
+  body.theme-clean ::-webkit-scrollbar-thumb { background: var(--wood-dark); border: 2px solid var(--parchment); }
+  body.theme-clean ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* "cambiar" es una acción secundaria y va como link, no como botón de
+     toolbar: no tiene que competir con "Actualizar". Va al final del
+     stylesheet a propósito: `button` y `body.theme-clean button` lo pisarían
+     parcialmente si estuviera arriba, y así el reset gana en los tres temas
+     por orden además de por especificidad. */
+  header .path #change-root {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    text-shadow: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  header .path #change-root:hover { filter: none; background: none; opacity: .7; }
+  header .path #change-root:active { transform: none; box-shadow: none; }
+
+  /* ---------------------------------------------------------------------
+     Layout angosto (panel de la activity bar)
+     El visor nació para la pestaña ancha, donde una tabla de 6 columnas
+     entra cómoda. En el sidebar mide ~350px: el header desbordaba en
+     horizontal (select 200px + search 220px + chip + botón, todos con
+     tamaño fijo y nowrap) y la tabla quedaba con las celdas partidas en
+     cinco renglones cada una. Acá la tabla pasa a fichas apiladas y todo
+     lo de ancho fijo pasa a flexible.
+     Va al final del stylesheet porque un @media no aporta especificidad:
+     tiene que ganar por orden.
+     --------------------------------------------------------------------- */
+  @media (max-width: 760px) {
+    body { padding: 8px; }
+    .game-frame { height: calc(100vh - 16px); padding: 4px; }
+
+    header { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
+    header > div { min-width: 0; }
+    header h1 { font-size: 13px; }
+    /* Las rutas largas no tienen espacios donde cortar. */
+    header .path #root-path { overflow-wrap: anywhere; }
+
+    .toolbar { flex-wrap: wrap; gap: 8px; }
+    /* Los dos controles que se pueden estirar comparten el ancho; el chip y
+       el botón conservan el suyo y caen al renglón siguiente si no entran. */
+    select#project-select { flex: 1 1 130px; max-width: none; min-width: 0; }
+    input[type="search"] { flex: 1 1 150px; width: auto; min-width: 0; }
+
+    /* Tabla -> fichas: el thead se va y cada <tr> se reordena en grid,
+       con el id y el título a ancho completo y los indicadores en una
+       línea de metadatos abajo. */
+    .table-wrap { max-height: 38vh; }
+    table, tbody { display: block; }
+    thead { display: none; }
+    tbody tr {
+      display: grid;
+      grid-template-columns: auto auto auto 1fr;
+      grid-template-areas:
+        "id    id  id   id"
+        "title title title title"
+        "specs oq  diag date";
+      align-items: center;
+      gap: 6px 8px;
+      padding: 10px 12px;
+      border-bottom: 2px dashed var(--parchment-alt);
+    }
+    tbody td { padding: 0; border: none; }
+    tbody td:nth-child(1) { grid-area: id; font-size: 12px; }
+    tbody td:nth-child(2) { grid-area: title; font-weight: 600; line-height: 1.35; }
+    tbody td:nth-child(3) { grid-area: specs; }
+    tbody td:nth-child(4) { grid-area: oq; }
+    tbody td:nth-child(5) { grid-area: diag; }
+    tbody td:nth-child(6) { grid-area: date; justify-self: end; font-size: 11px; color: var(--muted); }
+    .gem { width: 22px; height: 22px; font-size: 12px; }
+
+    /* Con pocas solapas entran en dos renglones y se ven todas; scrollear
+       en horizontal para descubrir que había una "Diagramas" no se ve. */
+    .tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 4px; padding: 8px 10px 0; }
+    .tab { padding: 6px 10px; font-size: 11px; }
+
+    .doc { padding: 16px 14px; }
+    .empty { padding: 22px 16px; }
+    .placeholder { padding: 40px 16px; }
+
+    .status-section { padding: 12px 12px; }
+    .status-meter .status-pct { font-size: 17px; min-width: 50px; }
+    /* El nombre de la spec puede ser largo; el estado se va a su renglón
+       en vez de exprimir el nombre a una palabra por línea. */
+    .status-spec { flex-wrap: wrap; gap: 6px 8px; }
+    .status-spec .name { flex: 1 1 100%; order: 3; }
+
+    /* Las tablas del markdown no se pueden reflowear sin romper la lectura:
+       scrollean solas en vez de estirar el documento. */
+    .doc-inner table { display: block; overflow-x: auto; }
+  }
+
+  /* Sidebar realmente angosto: ya no entran tres indicadores más la fecha
+     en un renglón, así que la fecha se va sola abajo. */
+  @media (max-width: 420px) {
+    header h1 { font-size: 11px; }
+    tbody tr {
+      grid-template-columns: auto auto 1fr;
+      grid-template-areas:
+        "id    id   id"
+        "title title title"
+        "specs oq   diag"
+        "date  date date";
+    }
+    tbody td:nth-child(6) { justify-self: start; }
+    .doc { padding: 14px 10px; }
+  }
 </style>
 </head>
 <body class="{{themeClass}}">
 <div class="game-frame">
 <header>
   <div>
-    <h1><span class="sprout">🌾</span> Task Guardian</h1>
+    <h1><span class="sprout deco">🌾</span> Task Guardian</h1>
     <div class="subtitle">task-viewer</div>
-    <div class="path" id="root-path"></div>
+    <div class="path"><span id="root-path"></span><button type="button" id="change-root" title="Elegir otra carpeta raíz">cambiar</button></div>
   </div>
   <div class="toolbar">
     <select id="project-select"></select>
-    <span class="stat-chip">📋 <span id="task-count">0</span> quests</span>
+    <span class="stat-chip"><span class="deco">📋</span> <span id="task-count">0</span> quests</span>
     <input type="search" id="search" placeholder="Filtrar por id o título…" />
-    <button id="refresh">🔄 Actualizar</button>
+    <button id="refresh"><span class="deco">🔄</span> Actualizar</button>
   </div>
 </header>
 <main>
-  <div class="table-wrap">
+  <button type="button" class="table-toggle" id="toggle-table" aria-expanded="true" aria-controls="table-wrap">
+    <span class="caret" aria-hidden="true">▾</span>
+    <span class="label" id="toggle-label">Tasks</span>
+  </button>
+  <div class="table-wrap" id="table-wrap">
     <table>
       <thead>
         <tr>
           <th>Task</th>
           <th>Título</th>
           <th>Specs</th>
-          <th>❓ Open Q.</th>
-          <th>🗺️ Diagramas</th>
+          <th><span class="deco">❓</span> Open Q.</th>
+          <th><span class="deco">🗺️</span> Diagramas</th>
           <th>Última actualización</th>
         </tr>
       </thead>
@@ -612,7 +1034,17 @@ let reqSeq = 0;
 const pending = new Map();
 window.addEventListener('message', (event) => {
   const msg = event.data;
-  if (!msg || !msg.id || !pending.has(msg.id)) return;
+  if (!msg) return;
+  // Mensajes empujados por la extensión (sin id): no responden a ningún
+  // callHost pendiente. Hoy solo el aviso de que cambió la carpeta raíz,
+  // que llega también cuando el cambio se hizo desde settings.json o desde
+  // otra ventana de VS Code.
+  if (!msg.id && msg.type === 'rootChanged') {
+    setRootLabel(msg.genesysDir);
+    loadRoot();
+    return;
+  }
+  if (!msg.id || !pending.has(msg.id)) return;
   const { resolve, reject } = pending.get(msg.id);
   pending.delete(msg.id);
   if (msg.error) reject(new Error(msg.error));
@@ -627,7 +1059,7 @@ function callHost(type, payload) {
 }
 
 const LAST_PROJECT_KEY = 'task-viewer:last-project';
-const state = { projects: [], selectedProject: null, tasks: [], selectedId: null, selectedFile: null, fileCache: new Map() };
+const state = { genesysDir: null, projects: [], selectedProject: null, tasks: [], selectedId: null, selectedFile: null, fileCache: new Map() };
 
 const el = (id) => document.getElementById(id);
 
@@ -638,12 +1070,15 @@ function fmtDate(iso) {
 }
 
 function tabLabel(file, task) {
-  if (file.kind === 'index') return '📖 Índice';
-  if (file.kind === 'open-questions') return '❓ Open Questions';
-  if (file.kind === 'diagrams') return '🗺️ Diagramas';
+  const clean = document.body.classList.contains('theme-clean');
+  if (file.kind === 'status') return clean ? 'Status' : '📊 Status';
+  if (file.kind === 'index') return clean ? 'Índice' : '📖 Índice';
+  if (file.kind === 'open-questions') return clean ? 'Open Questions' : '❓ Open Questions';
+  if (file.kind === 'plan') return clean ? 'Plan' : '🧭 Plan';
+  if (file.kind === 'diagrams') return clean ? 'Diagramas' : '🗺️ Diagramas';
   if (file.kind === 'spec') {
     const m = file.name.match(/^spec-(\d+)-(.+)\.md$/);
-    if (m) return `📜 Spec ${m[1]} — ${m[2].replace(/-/g, ' ')}`;
+    if (m) return `${clean ? '' : '📜 '}Spec ${m[1]} — ${m[2].replace(/-/g, ' ')}`;
   }
   return file.name;
 }
@@ -651,6 +1086,51 @@ function tabLabel(file, task) {
 async function loadProjects() {
   state.projects = await callHost('projects');
   renderProjectSelect();
+}
+
+// Plegada, la barra es lo único que queda del listado: lleva el título de la
+// task abierta para no perder de vista qué se está mirando.
+function renderToggleLabel() {
+  const collapsed = document.body.classList.contains('tasks-collapsed');
+  const task = state.tasks.find((t) => t.id === state.selectedId);
+  el('toggle-label').textContent = collapsed && task ? task.title : 'Tasks';
+}
+
+function setTasksCollapsed(collapsed) {
+  document.body.classList.toggle('tasks-collapsed', collapsed);
+  el('toggle-table').setAttribute('aria-expanded', String(!collapsed));
+  vscode.setState({ ...(vscode.getState() || {}), tasksCollapsed: collapsed });
+  renderToggleLabel();
+}
+
+function setRootLabel(genesysDir) {
+  state.genesysDir = genesysDir || null;
+  const node = el('root-path');
+  node.textContent = genesysDir || 'sin carpeta raíz configurada';
+  node.classList.toggle('unset', !genesysDir);
+  node.title = genesysDir || '';
+}
+
+// Recarga todo lo que cuelga de la carpeta raíz. Corre al arrancar y cada vez
+// que la raíz cambia; `preferredProject` solo se respeta si ese proyecto
+// existe en la raíz nueva, porque al cambiar de carpeta lo normal es que no.
+async function loadRoot(preferredProject) {
+  state.selectedProject = null;
+  state.selectedId = null;
+  state.selectedFile = null;
+  state.tasks = [];
+  state.fileCache.clear();
+
+  await loadProjects();
+  const projectId = (preferredProject && state.projects.some((p) => p.id === preferredProject))
+    ? preferredProject
+    : (state.projects[0] && state.projects[0].id);
+  if (projectId) return selectProject(projectId);
+
+  // Sin proyectos no hay a quién delegarle el repintado: selectProject() es
+  // el que normalmente redibuja tabla y solapas.
+  renderTable();
+  renderTabs();
 }
 
 function renderProjectSelect() {
@@ -704,8 +1184,14 @@ function renderTable() {
     !query || t.id.toLowerCase().includes(query) || t.title.toLowerCase().includes(query)
   );
 
+  el('empty-msg').textContent = !state.genesysDir
+    ? 'No hay carpeta raíz: elegí con "cambiar" (arriba) la carpeta que agrupa tus proyectos con .tasks/'
+    : state.projects.length
+      ? 'No hay tasks en este proyecto'
+      : 'No se encontraron proyectos con .tasks/ en esta carpeta';
   el('empty-msg').hidden = filtered.length > 0;
   el('task-count').textContent = filtered.length;
+  renderToggleLabel();
 
   filtered.forEach((t) => {
     const tr = document.createElement('tr');
@@ -714,7 +1200,7 @@ function renderTable() {
     tr.innerHTML = `
       <td><code>${t.id}</code></td>
       <td>${t.title}</td>
-      <td><span class="badge">📜 x${t.specCount}</span></td>
+      <td><span class="badge"><span class="deco">📜</span> x${t.specCount}</span></td>
       <td><span class="gem ${t.hasOpenQuestions ? 'lit' : ''}" title="${t.hasOpenQuestions ? 'Tiene preguntas abiertas' : 'Sin preguntas abiertas'}">❓</span></td>
       <td><span class="gem ${t.hasDiagrams ? 'lit' : ''}" title="${t.hasDiagrams ? 'Tiene diagramas' : 'Sin diagramas'}">🗺️</span></td>
       <td>${fmtDate(t.lastUpdated)}</td>
@@ -788,10 +1274,18 @@ async function renderDoc() {
     codeEl.parentElement.replaceWith(pre);
   });
 
+  const selected = task.files.find((f) => f.name === state.selectedFile);
+  const isStatus = selected && selected.kind === 'status';
+  if (isStatus) decorateStatusDoc(wrapper, content);
+
   doc.innerHTML = '<div class="doc-inner"></div>';
   doc.querySelector('.doc-inner').appendChild(wrapper);
 
-  wireInteractiveFields(doc.querySelector('.doc-inner'), project, task.id, state.selectedFile, content);
+  // status.md lo mantiene el agente ("do not edit manually") y además el panel
+  // ya se llevó los checkboxes de las etapas, así que no hay nada que cablear.
+  if (!isStatus) {
+    wireInteractiveFields(doc.querySelector('.doc-inner'), project, task.id, state.selectedFile, content);
+  }
 
   // Espera a que la fuente elegida termine de cargar: si mermaid mide el
   // texto de los nodos antes de eso, lo hace contra la fuente de fallback
@@ -829,6 +1323,162 @@ async function saveFileContent(project, taskId, fileName, content) {
   if (result.error) throw new Error(result.error);
 }
 
+// ---------------------------------------------------------------------------
+// status.md (plantilla de la skill simple-spec-builder) es un tablero de avance
+// de forma fija: 5 etapas en checkboxes + una tabla de specs con estado. Leído
+// como markdown plano cuesta sacarle "cómo viene la task" de un vistazo, así
+// que se antepone un panel con el porcentaje, el stepper de etapas y las specs
+// como fichas, y se quitan del documento las dos piezas que el panel ya
+// representa. Si el archivo no sigue la plantilla, no se detectan etapas y se
+// cae al render markdown de siempre sin perder nada.
+// ---------------------------------------------------------------------------
+
+// Devuelve el cuerpo de la sección `## <titulo>` que matchee `re`.
+function statusSection(content, re) {
+  const parts = content.split(/^##\s+(.+)$/m);
+  for (let i = 1; i < parts.length; i += 2) {
+    if (re.test(parts[i].trim())) return parts[i + 1] || '';
+  }
+  return '';
+}
+
+function parseStatusStages(content) {
+  const out = [];
+  statusSection(content, /^(stages|etapas)/i).split('\n').forEach((line) => {
+    const m = line.match(/^\s*-\s+\[([ xX])\]\s+\*\*(\d+)\.\s*(.+?)\*\*\s*(.*)$/);
+    if (!m) return;
+    let title = m[3].trim();
+    let count = null;
+    // La etapa 5 lleva el avance dentro del propio título ("Specs resueltas
+    // — 2 de 2") porque admite estados parciales sin tildar el checkbox.
+    const c = title.match(/^(.*?)\s*[—–-]\s*(\d+)\s+de\s+(\d+)\s*$/);
+    if (c) { title = c[1].trim(); count = { done: Number(c[2]), total: Number(c[3]) }; }
+    out.push({
+      done: m[1].toLowerCase() === 'x',
+      num: m[2],
+      title,
+      note: m[4].replace(/^\s*[—–-]\s*/, '').trim(),
+      count
+    });
+  });
+  return out;
+}
+
+function parseStatusSpecs(content) {
+  const out = [];
+  statusSection(content, /^specs/i).split('\n').forEach((line) => {
+    const m = line.match(/^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$/);
+    if (!m) return;
+    const [, num, name, state] = m;
+    if (/^[-:\s]+$/.test(num) || /^spec$/i.test(num)) return;
+    const kind = /✅|resuelt/i.test(state) ? 'done' : (/🟨|progres/i.test(state) ? 'wip' : 'todo');
+    out.push({ num, name, kind, state: state.replace(/[⬜🟨✅]/g, '').trim() || state });
+  });
+  return out;
+}
+
+function buildStatusPanel(stages, specs) {
+  const panel = document.createElement('div');
+  panel.className = 'status-panel';
+
+  const doneCount = stages.filter((s) => s.done).length;
+  const pct = Math.round((doneCount / stages.length) * 100);
+  if (pct === 100) panel.classList.add('is-complete');
+
+  const meter = document.createElement('div');
+  meter.className = 'status-section';
+  meter.innerHTML = `
+    <div class="status-meter">
+      <span class="status-pct">${pct}%</span>
+      <span class="status-track"><span class="status-fill"></span></span>
+      <span class="tally">${doneCount}/${stages.length} etapas</span>
+    </div>
+  `;
+  meter.querySelector('.status-fill').style.width = `${pct}%`;
+  panel.appendChild(meter);
+
+  // La etapa "en curso" es la primera sin tildar: da el foco de lectura sin
+  // que el archivo tenga que declararlo.
+  const currentIdx = stages.findIndex((s) => !s.done);
+  const stagesSection = document.createElement('div');
+  stagesSection.className = 'status-section';
+  stagesSection.innerHTML = '<h3>Etapas</h3>';
+  stages.forEach((stage, i) => {
+    const row = document.createElement('div');
+    row.className = `status-stage ${stage.done ? 'is-done' : (i === currentIdx ? 'is-current' : 'is-todo')}`;
+    row.innerHTML = `
+      <span class="mark">${stage.done ? '✓' : stage.num}</span>
+      <span class="body">
+        <span class="name"></span>
+        ${stage.note ? '<span class="note"></span>' : ''}
+      </span>
+      ${stage.count ? `<span class="tally">${stage.count.done}/${stage.count.total}</span>` : ''}
+    `;
+    row.querySelector('.name').textContent = stage.title;
+    // Las notas traen markdown inline (backticks, negritas) que conviene
+    // renderizar; parseInline no genera bloques, así que no rompe el layout.
+    if (stage.note) row.querySelector('.note').innerHTML = marked.parseInline(stage.note);
+    stagesSection.appendChild(row);
+  });
+  panel.appendChild(stagesSection);
+
+  if (specs.length) {
+    const specsSection = document.createElement('div');
+    specsSection.className = 'status-section';
+    specsSection.innerHTML = '<h3>Specs</h3>';
+    specs.forEach((spec) => {
+      const row = document.createElement('div');
+      row.className = `status-spec is-${spec.kind}`;
+      row.innerHTML = '<span class="num"></span><span class="name"></span><span class="state"></span>';
+      row.querySelector('.num').textContent = spec.num;
+      row.querySelector('.name').textContent = spec.name;
+      row.querySelector('.state').textContent = spec.state;
+      specsSection.appendChild(row);
+    });
+    panel.appendChild(specsSection);
+  }
+
+  return panel;
+}
+
+function decorateStatusDoc(wrapper, content) {
+  const stages = parseStatusStages(content);
+  if (!stages.length) return;
+  const specs = parseStatusSpecs(content);
+
+  // Se quitan del markdown las dos piezas que el panel ya muestra, más la
+  // leyenda de emojis (que el panel reemplaza por color). El resto —notas de
+  // spec, "Last updated"— se deja intacto.
+  const stagesList = [...wrapper.querySelectorAll('ul')]
+    .find((ul) => ul.querySelector('input[type="checkbox"]'));
+  if (stagesList) stagesList.remove();
+
+  const specsTable = [...wrapper.querySelectorAll('table')]
+    .find((t) => /^\s*spec\b/i.test(t.querySelector('th') ? t.querySelector('th').textContent : ''));
+  if (specsTable) specsTable.remove();
+
+  [...wrapper.querySelectorAll('p')]
+    .filter((p) => /^\s*(legend|leyenda)\s*:/i.test(p.textContent))
+    .forEach((p) => p.remove());
+
+  // Sacadas la lista y la tabla, sus encabezados quedan huérfanos (y con el
+  // <hr> separador al lado), duplicando los títulos que ya trae el panel. Se
+  // eliminan los <h2> que quedaron sin contenido propio; "Specs" sobrevive si
+  // debajo quedaron las notas por spec.
+  [...wrapper.querySelectorAll('h2')].forEach((h) => {
+    let next = h.nextElementSibling;
+    const rules = [];
+    while (next && next.tagName === 'HR') { rules.push(next); next = next.nextElementSibling; }
+    if (next && next.tagName !== 'H2') return;
+    rules.forEach((hr) => hr.remove());
+    h.remove();
+  });
+
+  // El panel va después del encabezado y su bajada, antes del primer <hr>.
+  const anchor = wrapper.querySelector('hr') || wrapper.firstChild;
+  wrapper.insertBefore(buildStatusPanel(stages, specs), anchor);
+}
+
 // Habilita los checkboxes de listas de tareas (`- [ ]` / `- [x]`) que marked
 // renderiza como <input disabled>, y los liga de vuelta a su línea exacta en
 // el markdown fuente para persistir el cambio con un PUT al archivo completo.
@@ -839,6 +1489,16 @@ async function saveFileContent(project, taskId, fileName, content) {
 // las opciones "**Other:**", sincronizando su checkbox (texto no vacío ⇒
 // tildado, vacío/`______` ⇒ destildado) — igual convención que ya usan los
 // open-questions existentes.
+
+// La plantilla de simple-spec-builder dice `**Other:**`, pero las specs se
+// redactan en castellano y en los open-questions ya generados conviven las
+// tres formas ("Other:", "Otro:", "Otra:"). Se tratan por igual: si solo se
+// reconoce la inglesa, los archivos en castellano quedan sin campo editable
+// y, peor, el guardado falla en silencio porque el reemplazo no matchea.
+const OTHER_LABEL_RE = /^(?:Other|Otro|Otra)\s*:$/i;
+const OTHER_LINE_RE = /^(\s*[-*+]\s+\[)[ xX](\]\s+\*\*(?:Other|Otro|Otra)\s*:\*\*)(.*)$/i;
+const BLANK_BODY_RE = /^_+$/;
+
 function wireInteractiveFields(container, project, taskId, fileName, initialContent) {
   let currentContent = initialContent;
   let saveChain = Promise.resolve();
@@ -893,35 +1553,53 @@ function wireInteractiveFields(container, project, taskId, fileName, initialCont
         .finally(() => { cb.disabled = false; });
     });
 
+    // La línea del markdown es la autoridad sobre si esta opción es un
+    // "Otro" y cuál es su texto crudo. Detectarlo mirando el textContent del
+    // <strong> fallaba con las variantes en castellano, y reconstruir el
+    // markdown a partir del HTML ya renderizado aplanaba backticks, negritas
+    // y links de las respuestas ya cargadas — y el blur dispara con solo
+    // hacer foco y salir, sin editar nada.
     const li = cb.closest('li');
-    const otherLabel = li && [...li.querySelectorAll('strong')].find((s) => s.textContent.trim() === 'Other:');
-    if (!otherLabel) return;
+    const otherMatch = currentContent.split('\n')[lineIndex].match(OTHER_LINE_RE);
+    if (!otherMatch) return;
+    const label = li && [...li.querySelectorAll('strong')].find((s) => OTHER_LABEL_RE.test(s.textContent.trim()));
+    if (!label) return;
 
+    const rawBody = otherMatch[3].trim();
     const span = document.createElement('span');
     span.className = 'other-editable';
     span.contentEditable = 'true';
     span.spellcheck = false;
-    let node = otherLabel.nextSibling;
+    span.dataset.placeholder = 'escribí la respuesta…';
+    // Se edita el markdown crudo, no el HTML renderizado: es exactamente lo
+    // que se va a escribir de vuelta al archivo, así el round-trip es fiel.
+    span.textContent = BLANK_BODY_RE.test(rawBody) ? '' : rawBody;
+
+    let node = label.nextSibling;
     while (node) {
       const next = node.nextSibling;
-      span.appendChild(node);
+      node.remove();
       node = next;
     }
-    otherLabel.after(span);
+    label.after(span);
 
     span.addEventListener('blur', () => {
       const line = currentContent.split('\n')[lineIndex];
-      const trimmed = span.textContent.trim();
-      const isFilled = trimmed.length > 0 && trimmed !== '______';
-      const bodyText = isFilled ? trimmed : '______';
-      const newLine = line.replace(
-        /^(\s*-\s\[)[ xX](\]\s\*\*Other:\*\*\s?).*$/,
-        (_m, pre, mid) => `${pre}${isFilled ? 'x' : ' '}${mid}${bodyText}`
-      );
+      const m = line.match(OTHER_LINE_RE);
+      if (!m) return;
+      // contentEditable inserta NBSP, y un pegado puede traer saltos de
+      // línea: la respuesta tiene que entrar en una sola línea de markdown.
+      // `\s` en JS ya matchea NBSP, así que un solo replace cubre ambos.
+      const body = span.textContent.replace(/\s+/g, ' ').trim();
+      const isFilled = body.length > 0 && !BLANK_BODY_RE.test(body);
+      const newLine = `${m[1]}${isFilled ? 'x' : ' '}${m[2]} ${isFilled ? body : '______'}`;
       if (newLine === line) return;
+      const wasChecked = cb.checked;
       span.classList.add('saving');
       cb.checked = isFilled;
-      persist(lineIndex, newLine).finally(() => span.classList.remove('saving'));
+      persist(lineIndex, newLine)
+        .catch(() => { cb.checked = wasChecked; })
+        .finally(() => span.classList.remove('saving'));
     });
 
     span.addEventListener('keydown', (e) => {
@@ -1068,18 +1746,29 @@ el('refresh').addEventListener('click', () => {
 });
 el('project-select').addEventListener('change', (e) => selectProject(e.target.value));
 
-callHost('meta').then((meta) => {
-  el('root-path').textContent = meta.genesysDir;
-}).catch(() => {});
-
-loadProjects().then(() => {
-  const requestedProject = (vscode.getState() || {}).lastProject;
-  const projectId = (requestedProject && state.projects.some((p) => p.id === requestedProject))
-    ? requestedProject
-    : (state.projects[0] && state.projects[0].id);
-  if (!projectId) return;
-  selectProject(projectId);
+el('toggle-table').addEventListener('click', () => {
+  setTasksCollapsed(!document.body.classList.contains('tasks-collapsed'));
 });
+// Se restaura antes de cargar datos para que no se vea el listado abrirse y
+// cerrarse en el arranque.
+setTasksCollapsed(!!(vscode.getState() || {}).tasksCollapsed);
+
+el('change-root').addEventListener('click', async () => {
+  const { genesysDir, cancelled } = await callHost('pickRoot');
+  if (cancelled) return;
+  // No se espera al evento de config: el push de `rootChanged` llega igual,
+  // pero refrescar acá deja la UI al día aunque el listener no dispare
+  // (p. ej. si se re-elige la misma carpeta ya configurada).
+  setRootLabel(genesysDir);
+  loadRoot();
+});
+
+// La raíz se pide antes de cargar nada: el estado vacío de la tabla depende
+// de si hay carpeta configurada o si la carpeta no tiene proyectos.
+callHost('meta')
+  .then((meta) => setRootLabel(meta.genesysDir))
+  .catch(() => {})
+  .then(() => loadRoot((vscode.getState() || {}).lastProject));
 </script>
 </body>
 </html>

@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "task-viewer-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server.js"],
+      "env": { "TASKS_VIEWER_PORT": "4799" },
+      "port": 4799
+    },
+    {
+      "name": "webview-harness",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["/tmp/claude-1000/-home-capde-Documentos-proyectos-genesys-task-viewer/b2e2f6e1-e1ef-4657-9551-a4fa1607c523/scratchpad/preview.js"],
+      "port": 4797
+    },
+    {
+      "name": "media-static-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4798", "--directory", "media"],
+      "port": 4798
+    }
+  ]
+}

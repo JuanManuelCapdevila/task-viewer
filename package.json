@@ -35,6 +35,11 @@
         "command": "taskViewer.open",
         "title": "Task Guardian: Abrir visor de tasks (pestaña)",
         "category": "Task Guardian"
+      },
+      {
+        "command": "taskViewer.pickRoot",
+        "title": "Task Guardian: Elegir carpeta raíz",
+        "category": "Task Guardian"
       }
     ],
     "configuration": {
@@ -43,22 +48,19 @@
         "taskViewer.genesysDir": {
           "type": "string",
           "default": "",
-          "description": "Carpeta que agrupa los proyectos con .tasks/. Si se deja vacío, se usa la carpeta raíz del workspace abierto."
+          "scope": "resource",
+          "markdownDescription": "Carpeta que agrupa los proyectos con `.tasks/`. Si se deja vacía, se usa la carpeta raíz del workspace abierto. También se puede cambiar desde el propio visor (link **cambiar** debajo del título) o con el comando *Task Guardian: Elegir carpeta raíz*; elegida desde ahí se guarda en el workspace, así cada uno recuerda la suya."
         },
         "taskViewer.theme": {
           "type": "string",
           "default": "pixel",
-          "enum": ["pixel", "neo-retro"],
+          "enum": ["pixel", "neo-retro", "clean"],
           "enumDescriptions": [
             "Estética pixel-art / consola retro (paleta parchment y madera, marco recortado, tipografía Press Start 2P / Pixelify Sans).",
-            "Neo-Retro Dev Deck: paleta R2-D2 (cobalto/rojo/plata), bordes negros gruesos, sombras duras sin blur, grid de cuaderno de ingeniería, tipografía Archivo Black / Space Grotesk / VT323."
+            "Neo-Retro Dev Deck: paleta R2-D2 (cobalto/rojo/plata), bordes negros gruesos, sombras duras sin blur, grid de cuaderno de ingeniería, tipografía Archivo Black / Space Grotesk / VT323.",
+            "Clean: diseño minimal sin texturas, sombras, degradés ni iconos decorativos — paleta neutra, bordes finos, un solo color de acento, tipografía del sistema."
           ],
-          "description": "Estilo visual del visor."
-        },
-        "taskViewer.fontFamily": {
-          "type": "string",
-          "default": "pixel",
-          "markdownDescription": "Tipografía del contenido (specs, tablas, diagramas). `pixel` (default) usa la tipografía propia de `taskViewer.theme`. También podés forzar `vscode` (la fuente de la interfaz de VS Code), `system` (fuente nativa del SO), o escribir cualquier lista de font-family CSS a mano, p. ej. `Georgia, serif`."
+          "description": "Estilo visual del visor. Cada tema trae su propia tipografía."
         }
       }
     }
