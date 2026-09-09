@@ -1,54 +1,111 @@
-# task-viewer
+# Task Guardian
 
-Visor único de `.tasks/` para todos los proyectos hermanos dentro de `genesys/`.
-No tiene dependencias externas (solo `http`/`fs` built-in de Node).
+Visor de specs y tasks en Markdown para VS Code. Recorre las carpetas `.tasks/`
+de todos tus proyectos y las muestra como un tablero navegable: listado de
+tasks, solapas por documento, diagramas Mermaid renderizados y checkboxes que
+se guardan al archivo.
 
-Funciona en dos modos, ambos sobre la misma lógica compartida en `lib/core.js`:
+No tiene dependencias externas: `marked` y `mermaid` van vendorizados, así que
+el visor funciona sin red.
 
-- **Standalone**: servidor HTTP (`server.js`) + `index.html` estático.
-- **Extensión de VS Code**: comando `Task Guardian: Abrir visor de tasks`, que abre
-  un webview equivalente sin necesidad de levantar ningún servidor.
+## La convención de carpetas
 
-## Uso standalone
+La extensión espera una carpeta raíz que agrupe varios proyectos, y en cada uno
+una carpeta `.tasks/` con una subcarpeta por task:
 
-```bash
-node server.js
-# o
-npm start
+```
+mi-raiz/
+├── proyecto-a/
+│   └── .tasks/
+│       ├── 101-alta-de-clientes/
+│       │   ├── status.md
+│       │   ├── index-spec.md
+│       │   ├── open-questions.md
+│       │   ├── implementation-plan.md
+│       │   ├── solution-diagrams.md
+│       │   └── spec-01-alta.md
+│       └── 102-baja-de-clientes/
+└── proyecto-b/
+    └── .tasks/
 ```
 
-Por defecto escucha en `http://localhost:4756` (configurable con `TASKS_VIEWER_PORT`).
+Los nombres de archivo conocidos (`status.md`, `index-spec.md`,
+`open-questions.md`, `implementation-plan.md`, `solution-diagrams.md`,
+`spec-NN-*.md`) se ordenan y etiquetan siguiendo ese flujo. Cualquier otro
+`.md` de la carpeta se muestra igual, al final.
 
-El servidor escanea todas las carpetas hermanas de `task-viewer/` (es decir,
-todo lo que hay en `genesys/`) y lista como "proyecto" a cada una que tenga
-una carpeta `.tasks/`. El selector de proyecto en la UI permite cambiar entre
-ellos sin reiniciar el servidor; la última selección se recuerda en
-`localStorage` y también queda en la URL (`?project=...&task=...&file=...`)
-para poder compartir un link directo.
+## Qué hace
 
-Al mover o renombrar un proyecto dentro de `genesys/`, no hace falta tocar
-nada acá: el listado de proyectos se recalcula en cada request a
-`/api/projects`.
+- **Listado por proyecto**, con contador de specs, indicadores de preguntas
+  abiertas y diagramas, y última modificación. El título de cada task sale del
+  primer encabezado de su `index-spec.md`.
+- **Panel de avance** para `status.md`: porcentaje, stepper de etapas y las
+  specs como fichas, en vez del markdown crudo.
+- **Diagramas Mermaid** con zoom, pan y pantalla completa.
+- **Edición liviana**: los checkboxes de listas de tareas y los campos
+  `**Other:**` de los open questions se escriben de vuelta al archivo.
+- **Refresco automático**: mientras tenés una task abierta, la extensión vigila
+  su carpeta y recarga sola cuando los `.md` cambian en disco — pensado para
+  trabajar al lado de un agente que va escribiendo las specs. Si estás editando
+  un campo en ese momento, el refresco espera a que sueltes el foco para no
+  pisarte lo que estás tipeando.
 
-## Uso como extensión de VS Code
+## Uso
 
-1. Abrí esta carpeta (`task-viewer/`) en VS Code.
-2. F5 (o "Run and Debug" → "Run Task Guardian extension") abre una segunda
-   ventana de VS Code ("Extension Development Host") con la carpeta
-   `genesys/` (la carpeta padre) como workspace.
-3. En esa ventana, `Ctrl+Shift+P` → `Task Guardian: Abrir visor de tasks`.
+Se abre de dos formas:
 
-Por defecto la extensión usa la raíz del workspace abierto como `GENESYS_DIR`.
-Se puede sobreescribir con la config `taskViewer.genesysDir` (Settings →
-buscar "Task Guardian").
+- El ícono **Task Guardian** en la barra lateral.
+- `Ctrl+Shift+P` → **Task Guardian: Abrir visor de tasks (pestaña)**, que lo
+  abre como pestaña ancha (mejor para la tabla de 6 columnas).
 
-El webview no depende de red: `marked` y `mermaid` están vendorizados en
-`media/vendor/` y se cargan vía `asWebviewUri`. La comunicación con el
-extension host (listar proyectos/tasks, leer y guardar archivos) va por
-`postMessage`, reemplazando los `fetch()` a `/api/*` de la versión standalone.
+Por defecto usa la raíz del workspace abierto. Para apuntar a otra carpeta:
+el link **cambiar** debajo del título, o `Ctrl+Shift+P` → **Task Guardian:
+Elegir carpeta raíz**. La elección se guarda por workspace, así cada ventana
+recuerda la suya.
 
-### Empaquetar (.vsix)
+## Configuración
+
+| Setting | Default | Qué hace |
+| --- | --- | --- |
+| `taskViewer.genesysDir` | `""` | Carpeta que agrupa los proyectos con `.tasks/`. Vacía = raíz del workspace |
+| `taskViewer.theme` | `pixel` | `pixel` (estética retro), `neo-retro` (bordes duros, paleta cobalto/rojo) o `clean` (minimal, tipografía del sistema) |
+
+Cada tema trae su propia tipografía: están diseñados alrededor de ella
+(métricas, tamaños, sombras), por eso no se configuran por separado.
+
+## Modo standalone
+
+La misma lógica (`lib/core.js`) corre como servidor HTTP, sin VS Code:
+
+```bash
+node server.js   # o: npm start
+```
+
+Escucha en `http://localhost:4756` (configurable con `TASKS_VIEWER_PORT`) y
+sirve `index.html`. Lista como proyecto a cada carpeta hermana de
+`task-viewer/` que tenga un `.tasks/`. La selección queda en la URL
+(`?project=...&task=...&file=...`) para compartir un link directo.
+
+> El modo standalone quedó atrás en funcionalidad respecto de la extensión
+> (no tiene temas, panel de status ni refresco automático).
+
+## Desarrollo
+
+1. Abrí esta carpeta en VS Code.
+2. F5 → "Run Task Guardian extension" abre una segunda ventana (Extension
+   Development Host) con la carpeta padre como workspace.
+3. Ahí, `Ctrl+Shift+P` → **Task Guardian: Abrir visor de tasks**.
+
+El webview se comunica con el extension host por `postMessage` (listar
+proyectos y tasks, leer y guardar archivos, registrar el watcher), reemplazando
+los `fetch()` a `/api/*` del modo standalone.
+
+Para empaquetar:
 
 ```bash
 npx @vscode/vsce package
 ```
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE).

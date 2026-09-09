@@ -1,14 +1,29 @@
 {
   "name": "task-viewer",
   "displayName": "Task Guardian",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
-  "description": "Visor de .tasks/ para todos los proyectos hermanos en genesys/ — como servidor standalone o como extensión de VS Code.",
+  "description": "Visor de specs y tasks en Markdown: navega las carpetas .tasks/ de todos tus proyectos, renderiza diagramas Mermaid y se refresca solo cuando los archivos cambian.",
   "publisher": "genesys-local",
+  "license": "MIT",
+  "author": "Juan Manuel Capdevila",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JuanManuelCapdevila/task-viewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JuanManuelCapdevila/task-viewer/issues"
+  },
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#4a2c17",
+    "theme": "dark"
+  },
+  "keywords": ["markdown", "mermaid", "specs", "tasks", "documentation"],
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": ["Visualization", "Notebooks", "Other"],
   "main": "./extension.js",
   "activationEvents": [],
   "contributes": {
