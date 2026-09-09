@@ -171,6 +171,89 @@ async function pickGenesysDir() {
   return { genesysDir: chosen, cancelled: false };
 }
 
+// ---------------------------------------------------------------------------
+// Auto-refresh de la task abierta
+// El visor suele estar abierto al lado de un agente que va reescribiendo las
+// specs; antes había que apretar "Actualizar" para ver texto que ya estaba en
+// disco. Se vigila solo la carpeta de la task abierta (un watcher por webview,
+// recreado en cada cambio de selección): es lo único que se está mirando, y un
+// watcher sobre la raíz entera dispararía por cualquier proyecto.
+// ---------------------------------------------------------------------------
+
+// Una escritura puede llegar como varios eventos (create + change), y un agente
+// que reescribe varias specs seguidas dispararía un repintado por cada una.
+const WATCH_DEBOUNCE_MS = 250;
+
+// Ventana en la que se ignoran los cambios de un archivo que acabamos de
+// escribir nosotros (checkbox / campo "Other" del propio visor). Sin esto cada
+// guardado volvería como "cambio externo" y repintaría el documento justo
+// debajo del cursor.
+const SELF_WRITE_WINDOW_MS = 2000;
+
+const watchers = new Map(); // webview -> { key, dispose }
+const selfWrites = new Map(); // fsPath -> timestamp
+
+function markSelfWrite(fsPath) {
+  const now = Date.now();
+  for (const [p, at] of selfWrites) {
+    if (now - at > SELF_WRITE_WINDOW_MS) selfWrites.delete(p);
+  }
+  selfWrites.set(fsPath, now);
+}
+
+function isSelfWrite(fsPath) {
+  const at = selfWrites.get(fsPath);
+  return at !== undefined && Date.now() - at < SELF_WRITE_WINDOW_MS;
+}
+
+function resolveTaskDir(genesysDir, projectId, taskId) {
+  const tasksDir = core.safeProjectTasksDir(genesysDir, projectId);
+  return tasksDir ? core.safeTaskDir(tasksDir, taskId) : null;
+}
+
+function stopWatching(webview) {
+  const entry = watchers.get(webview);
+  if (!entry) return;
+  entry.dispose();
+  watchers.delete(webview);
+}
+
+// `taskId` nulo (o carpeta inexistente) deja al webview sin watcher: es el caso
+// de "ningún proyecto/task seleccionado".
+function watchTask(webview, projectId, taskId) {
+  const genesysDir = resolveGenesysDir();
+  const taskDir = genesysDir && projectId && taskId
+    ? resolveTaskDir(genesysDir, projectId, taskId)
+    : null;
+
+  const current = watchers.get(webview);
+  if (current && current.key === taskDir) return { watching: !!taskDir };
+  stopWatching(webview);
+  if (!taskDir) return { watching: false };
+
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(vscode.Uri.file(taskDir), '*.md')
+  );
+  let timer = null;
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      webview.postMessage({ type: 'taskChanged', project: projectId, task: taskId });
+    }, WATCH_DEBOUNCE_MS);
+  };
+  // El filtro de escrituras propias solo aplica a modificaciones: un alta o una
+  // baja nunca las origina el visor, y perdérselas dejaría solapas fantasma.
+  watcher.onDidChange((uri) => { if (!isSelfWrite(uri.fsPath)) schedule(); });
+  watcher.onDidCreate(schedule);
+  watcher.onDidDelete(schedule);
+
+  watchers.set(webview, {
+    key: taskDir,
+    dispose: () => { clearTimeout(timer); watcher.dispose(); }
+  });
+  return { watching: true };
+}
+
 // La raíz se resuelve en cada mensaje, no una sola vez al crear el webview:
 // si quedara capturada en el closure, cambiarla desde la UI no tendría efecto
 // hasta recargar la ventana.
@@ -197,8 +280,14 @@ async function handleMessage(excludeDirName, msg) {
     }
     case 'file':
       return core.getFileContent(genesysDir, payload.project, payload.task, payload.file);
-    case 'saveFile':
-      return core.saveFileContent(genesysDir, payload.project, payload.task, payload.file, payload.content);
+    case 'saveFile': {
+      const result = core.saveFileContent(genesysDir, payload.project, payload.task, payload.file, payload.content);
+      if (result.ok) {
+        const taskDir = resolveTaskDir(genesysDir, payload.project, payload.task);
+        if (taskDir) markSelfWrite(path.join(taskDir, payload.file));
+      }
+      return result;
+    }
     default:
       throw new Error(`Unknown message type: ${type}`);
   }
@@ -217,7 +306,11 @@ function wireWebview(webview, context) {
   webview.html = buildHtml(webview, context.extensionUri);
   webview.onDidReceiveMessage(async (msg) => {
     try {
-      const result = await handleMessage(path.basename(context.extensionPath), msg);
+      // 'watch' se atiende acá y no en handleMessage porque necesita el
+      // webview: el watcher es por vista, no global.
+      const result = msg.type === 'watch'
+        ? watchTask(webview, msg.payload.project, msg.payload.task)
+        : await handleMessage(path.basename(context.extensionPath), msg);
       webview.postMessage({ id: msg.id, result });
     } catch (err) {
       webview.postMessage({ id: msg.id, error: err.message });
@@ -225,6 +318,11 @@ function wireWebview(webview, context) {
   }, undefined, context.subscriptions);
 
   liveWebviews.add(webview);
+}
+
+function disposeWebview(webview) {
+  stopWatching(webview);
+  liveWebviews.delete(webview);
 }
 
 function openPanel(context) {
@@ -235,7 +333,7 @@ function openPanel(context) {
     { retainContextWhenHidden: true }
   );
   wireWebview(panel.webview, context);
-  panel.onDidDispose(() => liveWebviews.delete(panel.webview), undefined, context.subscriptions);
+  panel.onDidDispose(() => disposeWebview(panel.webview), undefined, context.subscriptions);
 }
 
 class TaskViewerViewProvider {
@@ -244,7 +342,7 @@ class TaskViewerViewProvider {
   }
   resolveWebviewView(webviewView) {
     wireWebview(webviewView.webview, this.context);
-    webviewView.onDidDispose(() => liveWebviews.delete(webviewView.webview));
+    webviewView.onDidDispose(() => disposeWebview(webviewView.webview));
   }
 }
 
@@ -280,6 +378,8 @@ function activate(context) {
   );
 }
 
-function deactivate() {}
+function deactivate() {
+  for (const webview of [...watchers.keys()]) stopWatching(webview);
+}
 
 module.exports = { activate, deactivate };

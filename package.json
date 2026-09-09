@@ -1,7 +1,7 @@
 {
   "name": "task-viewer",
   "displayName": "Task Guardian",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Visor de .tasks/ para todos los proyectos hermanos en genesys/ — como servidor standalone o como extensión de VS Code.",
   "publisher": "genesys-local",

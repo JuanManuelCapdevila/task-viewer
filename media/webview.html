@@ -201,22 +201,6 @@
     box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .18), 0 0 0 2px var(--gold);
   }
 
-  input[type="search"] {
-    padding: 8px 10px;
-    border: 2px solid var(--wood-darker);
-    background: var(--parchment);
-    color: var(--ink);
-    font-family: inherit;
-    font-size: 13px;
-    width: 220px;
-    box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .18);
-  }
-  input[type="search"]::placeholder { color: var(--muted); }
-  input[type="search"]:focus {
-    outline: none;
-    box-shadow: inset 2px 2px 0 rgba(0, 0, 0, .18), 0 0 0 2px var(--gold);
-  }
-
   button {
     padding: 8px 14px;
     border: 2px solid var(--wood-darker);
@@ -741,13 +725,11 @@
     border: 1px solid var(--wood-dark);
     box-shadow: none;
   }
-  body.theme-clean select#project-select,
-  body.theme-clean input[type="search"] {
+  body.theme-clean select#project-select {
     border: 1px solid var(--wood-dark);
     box-shadow: none;
   }
-  body.theme-clean select#project-select:focus,
-  body.theme-clean input[type="search"]:focus {
+  body.theme-clean select#project-select:focus {
     box-shadow: 0 0 0 2px rgba(9, 105, 218, .3);
   }
   body.theme-clean button {
@@ -814,7 +796,7 @@
   body.theme-clean ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
   /* "cambiar" es una acción secundaria y va como link, no como botón de
-     toolbar: no tiene que competir con "Actualizar". Va al final del
+     toolbar. Va al final del
      stylesheet a propósito: `button` y `body.theme-clean button` lo pisarían
      parcialmente si estuviera arriba, y así el reset gana en los tres temas
      por orden además de por especificidad. */
@@ -836,10 +818,9 @@
      Layout angosto (panel de la activity bar)
      El visor nació para la pestaña ancha, donde una tabla de 6 columnas
      entra cómoda. En el sidebar mide ~350px: el header desbordaba en
-     horizontal (select 200px + search 220px + chip + botón, todos con
-     tamaño fijo y nowrap) y la tabla quedaba con las celdas partidas en
-     cinco renglones cada una. Acá la tabla pasa a fichas apiladas y todo
-     lo de ancho fijo pasa a flexible.
+     horizontal (select 200px + chip, con tamaño fijo y nowrap) y la tabla
+     quedaba con las celdas partidas en cinco renglones cada una. Acá la
+     tabla pasa a fichas apiladas y todo lo de ancho fijo pasa a flexible.
      Va al final del stylesheet porque un @media no aporta especificidad:
      tiene que ganar por orden.
      --------------------------------------------------------------------- */
@@ -854,10 +835,9 @@
     header .path #root-path { overflow-wrap: anywhere; }
 
     .toolbar { flex-wrap: wrap; gap: 8px; }
-    /* Los dos controles que se pueden estirar comparten el ancho; el chip y
-       el botón conservan el suyo y caen al renglón siguiente si no entran. */
+    /* El select se estira con el ancho disponible; el chip conserva el suyo
+       y cae al renglón siguiente si no entra. */
     select#project-select { flex: 1 1 130px; max-width: none; min-width: 0; }
-    input[type="search"] { flex: 1 1 150px; width: auto; min-width: 0; }
 
     /* Tabla -> fichas: el thead se va y cada <tr> se reordena en grid,
        con el id y el título a ancho completo y los indicadores en una
@@ -935,8 +915,6 @@
   <div class="toolbar">
     <select id="project-select"></select>
     <span class="stat-chip"><span class="deco">📋</span> <span id="task-count">0</span> quests</span>
-    <input type="search" id="search" placeholder="Filtrar por id o título…" />
-    <button id="refresh"><span class="deco">🔄</span> Actualizar</button>
   </div>
 </header>
 <main>
@@ -1044,6 +1022,12 @@ window.addEventListener('message', (event) => {
     loadRoot();
     return;
   }
+  // Cambió algún .md de la carpeta de la task abierta. Llega con project/task
+  // para descartar avisos de un watcher viejo que todavía no se apagó.
+  if (!msg.id && msg.type === 'taskChanged') {
+    if (msg.project === state.selectedProject && msg.task === state.selectedId) refreshOpenTask();
+    return;
+  }
   if (!msg.id || !pending.has(msg.id)) return;
   const { resolve, reject } = pending.get(msg.id);
   pending.delete(msg.id);
@@ -1059,7 +1043,10 @@ function callHost(type, payload) {
 }
 
 const LAST_PROJECT_KEY = 'task-viewer:last-project';
-const state = { genesysDir: null, projects: [], selectedProject: null, tasks: [], selectedId: null, selectedFile: null, fileCache: new Map() };
+// docStale: el documento en pantalla quedó atrás respecto del disco porque el
+// refresh automático se difirió (ver refreshOpenTask). Mientras esté en true no
+// se guarda desde el documento: ver persist() en wireInteractiveFields.
+const state = { genesysDir: null, projects: [], selectedProject: null, tasks: [], selectedId: null, selectedFile: null, fileCache: new Map(), docStale: false };
 
 const el = (id) => document.getElementById(id);
 
@@ -1129,6 +1116,7 @@ async function loadRoot(preferredProject) {
 
   // Sin proyectos no hay a quién delegarle el repintado: selectProject() es
   // el que normalmente redibuja tabla y solapas.
+  syncWatch();
   renderTable();
   renderTabs();
 }
@@ -1161,6 +1149,7 @@ async function selectProject(projectId, taskId, fileName) {
   if (taskId && state.tasks.some((t) => t.id === taskId)) {
     selectTask(taskId, fileName);
   } else {
+    syncWatch();
     renderTabs();
   }
 }
@@ -1176,24 +1165,19 @@ async function loadTasks() {
 }
 
 function renderTable() {
-  const query = el('search').value.trim().toLowerCase();
   const rows = el('task-rows');
   rows.innerHTML = '';
-
-  const filtered = state.tasks.filter((t) =>
-    !query || t.id.toLowerCase().includes(query) || t.title.toLowerCase().includes(query)
-  );
 
   el('empty-msg').textContent = !state.genesysDir
     ? 'No hay carpeta raíz: elegí con "cambiar" (arriba) la carpeta que agrupa tus proyectos con .tasks/'
     : state.projects.length
       ? 'No hay tasks en este proyecto'
       : 'No se encontraron proyectos con .tasks/ en esta carpeta';
-  el('empty-msg').hidden = filtered.length > 0;
-  el('task-count').textContent = filtered.length;
+  el('empty-msg').hidden = state.tasks.length > 0;
+  el('task-count').textContent = state.tasks.length;
   renderToggleLabel();
 
-  filtered.forEach((t) => {
+  state.tasks.forEach((t) => {
     const tr = document.createElement('tr');
     tr.dataset.id = t.id;
     if (t.id === state.selectedId) tr.classList.add('selected');
@@ -1213,17 +1197,19 @@ function renderTable() {
 function selectTask(taskId, fileName) {
   state.selectedId = taskId;
   state.selectedFile = fileName || null;
+  syncWatch();
   renderTable();
-  renderTabs();
+  return renderTabs();
 }
 
+// Devuelve la promesa de renderDoc() para que el auto-refresh pueda esperar a
+// que el documento esté pintado antes de restaurar el scroll.
 function renderTabs() {
   const task = state.tasks.find((t) => t.id === state.selectedId);
   const tabs = el('tabs');
   tabs.innerHTML = '';
   if (!task) {
-    renderDoc();
-    return;
+    return renderDoc();
   }
 
   if (!state.selectedFile && task.files.length) state.selectedFile = task.files[0].name;
@@ -1236,7 +1222,7 @@ function renderTabs() {
     tabs.appendChild(tab);
   });
 
-  renderDoc();
+  return renderDoc();
 }
 
 async function renderDoc() {
@@ -1280,6 +1266,9 @@ async function renderDoc() {
 
   doc.innerHTML = '<div class="doc-inner"></div>';
   doc.querySelector('.doc-inner').appendChild(wrapper);
+  // Lo que se acaba de pintar sale de disco (o del cache, que se invalida en
+  // cada refresh), así que el buffer de edición vuelve a ser confiable.
+  state.docStale = false;
 
   // status.md lo mantiene el agente ("do not edit manually") y además el panel
   // ya se llevó los checkboxes de las etapas, así que no hay nada que cablear.
@@ -1507,6 +1496,17 @@ function wireInteractiveFields(container, project, taskId, fileName, initialCont
   // (p.ej. tildar un checkbox y tipear en "Other" casi al mismo tiempo) no
   // se pisen escribiendo cada una sobre un `currentContent` desactualizado.
   function persist(lineIndex, newLine) {
+    // Se reescribe el archivo entero desde `currentContent`. Si mientras se
+    // editaba llegó un cambio de disco (refresh diferido pendiente), ese buffer
+    // está viejo y guardarlo pisaría lo que escribió el agente: se rechaza y
+    // gana el disco, que el refresh diferido va a repintar enseguida.
+    if (state.docStale) {
+      // Sin el aviso, el checkbox vuelve solo a su estado anterior y parece
+      // que la UI no responde.
+      showToast('El archivo cambió en disco: se recarga', true);
+      return Promise.reject(new Error('el archivo cambió en disco'));
+    }
+
     const lines = currentContent.split('\n');
     lines[lineIndex] = newLine;
     const updated = lines.join('\n');
@@ -1739,11 +1739,83 @@ document.addEventListener('keydown', (e) => {
   if (fs.__fit) requestAnimationFrame(fs.__fit);
 });
 
-el('search').addEventListener('input', renderTable);
-el('refresh').addEventListener('click', () => {
+// ---------------------------------------------------------------------------
+// Auto-refresh
+// La extensión vigila la carpeta de la task abierta y empuja 'taskChanged'
+// cuando cambia alguno de sus .md (el caso normal: un agente reescribiendo las
+// specs con el visor abierto al lado). Reemplaza al botón "Actualizar", que
+// obligaba a acordarse de apretarlo para ver texto que ya estaba en disco.
+// Solo se vigila la task abierta, no la raíz entera: es lo único que se está
+// mirando, y un watcher sobre todos los proyectos dispararía sin parar.
+// ---------------------------------------------------------------------------
+
+// Le dice al host qué carpeta mirar; sin task seleccionada apaga el watcher.
+function syncWatch() {
+  callHost('watch', { project: state.selectedProject, task: state.selectedId })
+    .catch(() => {});
+}
+
+// Repintar reemplaza el DOM del documento: si el refresh cae justo mientras se
+// tipea en un campo "Other:", se pierde el foco y el texto a medio escribir.
+// En ese caso se difiere hasta que el campo suelte el foco.
+let pendingRefresh = false;
+
+function editingInDoc() {
+  const active = document.activeElement;
+  return !!active && active.isContentEditable && el('doc').contains(active);
+}
+
+async function refreshOpenTask() {
+  if (editingInDoc()) {
+    pendingRefresh = true;
+    state.docStale = true;
+    scheduleRetry();
+    return;
+  }
+  pendingRefresh = false;
+
+  const doc = el('doc');
+  const scroll = doc.scrollTop;
+  const fileName = state.selectedFile;
+
   state.fileCache.clear();
-  loadProjects().then(() => loadTasks());
-});
+  // Recarga la lista además del documento: el cambio puede haber agregado o
+  // borrado archivos de la task, y eso mueve solapas, contadores y fecha.
+  await loadTasks();
+
+  const task = state.tasks.find((t) => t.id === state.selectedId);
+  if (!task) {
+    // La task desapareció del disco (renombrada, borrada).
+    state.selectedId = null;
+    state.selectedFile = null;
+    syncWatch();
+    await renderTabs();
+    return;
+  }
+  // El archivo abierto puede haberse borrado o renombrado: se cae a la primera
+  // solapa en vez de dejar un "File not found" en pantalla.
+  if (!task.files.some((f) => f.name === fileName)) state.selectedFile = null;
+  await renderTabs();
+  doc.scrollTop = scroll;
+}
+
+// El reintento es un timer y no un listener de 'focusout' porque el foco puede
+// quedarse en el campo indefinidamente: con el evento, un cursor olvidado ahí
+// dejaba el documento congelado sin aviso. Solo corre mientras hay un refresh
+// diferido y se apaga solo.
+let retryTimer = null;
+function scheduleRetry() {
+  if (retryTimer) return;
+  retryTimer = setInterval(() => {
+    if (!pendingRefresh) {
+      clearInterval(retryTimer);
+      retryTimer = null;
+      return;
+    }
+    if (!editingInDoc()) refreshOpenTask();
+  }, 1000);
+}
+
 el('project-select').addEventListener('change', (e) => selectProject(e.target.value));
 
 el('toggle-table').addEventListener('click', () => {
