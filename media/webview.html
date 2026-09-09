@@ -1286,13 +1286,23 @@ async function renderDoc() {
   const mermaidBlocks = [...doc.querySelectorAll('.mermaid')];
   for (const block of mermaidBlocks) {
     const source = block.textContent;
+    const id = `mermaid-${Math.random().toString(36).slice(2)}`;
     try {
-      const id = `mermaid-${Math.random().toString(36).slice(2)}`;
       const { svg } = await mermaid.render(id, source);
       block.replaceWith(buildDiagramFrame(svg));
     } catch (err) {
       block.innerHTML = `<div class="mermaid-error">Error renderizando diagrama: ${err.message || err}</div>`;
       console.error('Error renderizando mermaid', err);
+    } finally {
+      // Cuando el parseo falla, mermaid deja su contenedor temporal `#d<id>`
+      // colgado de <body> con el cartelón "Syntax error in text" adentro, y no
+      // lo limpia nunca (en un render exitoso sí lo saca). Cada fallo sumaba
+      // así un cartel permanente al pie de la página, ajeno al documento que
+      // se esté viendo: se acumulaban sobre todo con el refresco automático,
+      // que reintenta el render cada vez que cambia el archivo. El error del
+      // diagrama ya se muestra en su lugar, dentro del documento.
+      const orphan = document.getElementById(`d${id}`);
+      if (orphan) orphan.remove();
     }
   }
 }
