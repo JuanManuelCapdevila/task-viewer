@@ -1,4 +1,5 @@
 node_modules/
 *.vsix
+task-viewer-*/
 *.map
 .DS_Store

@@ -3,5 +3,6 @@
 .gitignore
 **/*.map
 *.vsix
-task-viewer-1.0.0/**
+task-viewer-*/**
 design_1.md
+media/_theme-clean-preview.html
