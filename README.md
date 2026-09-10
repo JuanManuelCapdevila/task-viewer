@@ -44,6 +44,12 @@ Los nombres de archivo conocidos (`status.md`, `index-spec.md`,
 - **Diagramas Mermaid** con zoom, pan y pantalla completa.
 - **Edición liviana**: los checkboxes de listas de tareas y los campos
   `**Other:**` de los open questions se escriben de vuelta al archivo.
+- **Exportar a PDF**: el botón **🖨️ PDF** de la barra de solapas se lleva el
+  documento abierto —diagramas incluidos— a un HTML autocontenido que se abre en
+  el navegador con el diálogo de impresión ya arriba: eligiendo *Guardar como
+  PDF* queda un archivo para compartir, con el texto seleccionable y los
+  diagramas vectoriales. Pasa por el navegador porque VS Code no sabe generar
+  PDFs y bloquea la impresión dentro de un webview.
 - **Refresco automático**: mientras tenés una task abierta, la extensión vigila
   su carpeta y recarga sola cuando los `.md` cambian en disco — pensado para
   trabajar al lado de un agente que va escribiendo las specs. Si estás editando

@@ -7,7 +7,7 @@
 <title>🌾 Task Guardian</title>
 <script nonce="{{nonce}}" src="{{markedUri}}"></script>
 <script nonce="{{nonce}}" src="{{mermaidUri}}"></script>
-<style>
+<style id="app-css">
   /* Fuentes vendorizadas (media/vendor/fonts/): un webview no tiene por qué
      tener salida a Google Fonts (proxy corporativo, política de red del
      editor, offline) — si el @font-face falla, el <h1> cae a un fallback
@@ -341,12 +341,30 @@
   .empty::before { content: '🪹'; display: block; font-size: 30px; margin-bottom: 8px; }
 
   .viewer { display: flex; flex-direction: column; overflow: hidden; }
-  .tabs {
-    display: flex; gap: 4px; padding: 10px 12px 0;
+  /* El borde y el fondo viven en la barra, no en .tabs: el botón de exportar
+     queda anclado a la derecha y no se va con el scroll horizontal de las
+     solapas (que en el sidebar angosto es lo normal). */
+  .tabs-bar {
+    display: flex;
+    align-items: stretch;
     border-bottom: 4px solid var(--wood-dark);
-    overflow-x: auto;
     background: var(--parchment-alt);
   }
+  .tabs {
+    display: flex; gap: 4px; padding: 10px 12px 0;
+    overflow-x: auto;
+    flex: 1;
+    min-width: 0;
+  }
+  .export-btn {
+    align-self: center;
+    flex: 0 0 auto;
+    margin: 6px 10px 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .export-btn:disabled { opacity: .45; cursor: default; filter: none; }
   .tab {
     padding: 8px 14px;
     font-size: 12px;
@@ -770,7 +788,7 @@
   }
   body.theme-clean .gem.lit { box-shadow: none; opacity: 1; }
   body.theme-clean .empty::before, body.theme-clean .placeholder::before { display: none; }
-  body.theme-clean .tabs { border-bottom: 1px solid var(--wood-dark); background: var(--parchment); }
+  body.theme-clean .tabs-bar { border-bottom: 1px solid var(--wood-dark); background: var(--parchment); }
   body.theme-clean .tab {
     border: 1px solid var(--wood-dark);
     border-bottom: none;
@@ -870,6 +888,11 @@
        en horizontal para descubrir que había una "Diagramas" no se ve. */
     .tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 4px; padding: 8px 10px 0; }
     .tab { padding: 6px 10px; font-size: 11px; }
+    /* Con las solapas ya en varios renglones, el botón compite por el ancho:
+       se va a su propio renglón, alineado a la derecha. */
+    .tabs-bar { flex-wrap: wrap; }
+    .tabs { flex-basis: 100%; }
+    .export-btn { margin: 4px 10px 8px auto; padding: 5px 10px; font-size: 11px; }
 
     .doc { padding: 16px 14px; }
     .empty { padding: 22px 16px; }
@@ -939,7 +962,12 @@
     <div class="empty" id="empty-msg" hidden>No hay tasks en este proyecto</div>
   </div>
   <div class="viewer">
-    <div class="tabs" id="tabs"></div>
+    <div class="tabs-bar">
+      <div class="tabs" id="tabs"></div>
+      <button type="button" class="export-btn" id="export-doc" disabled title="Exportar este documento a PDF">
+        <span class="deco">🖨️</span> PDF
+      </button>
+    </div>
     <div class="doc" id="doc">
       <div class="placeholder">Seleccioná un task de la tabla para ver sus specs.</div>
     </div>
@@ -1227,6 +1255,12 @@ function renderTabs() {
 
 async function renderDoc() {
   const doc = el('doc');
+  // Se apaga antes de cualquier await: mientras se pinta el documento nuevo, en
+  // pantalla sigue el anterior, y exportarlo ahí lo mandaría al PDF con los
+  // datos (task, archivo) del que se acaba de elegir. Se vuelve a habilitar al
+  // final, con los diagramas ya renderizados.
+  el('export-doc').disabled = true;
+
   const task = state.tasks.find((t) => t.id === state.selectedId);
   if (!task || !state.selectedFile) {
     doc.innerHTML = '<div class="placeholder">Seleccioná un task de la tabla para ver sus specs.</div>';
@@ -1305,6 +1339,10 @@ async function renderDoc() {
       if (orphan) orphan.remove();
     }
   }
+
+  // Recién acá: exportar con los diagramas a medio renderizar se llevaría al
+  // PDF el código mermaid crudo de los bloques que todavía no se convirtieron.
+  el('export-doc').disabled = false;
 }
 
 let toastTimer = null;
@@ -1747,6 +1785,224 @@ document.addEventListener('keydown', (e) => {
   if (!fs) return;
   fs.classList.remove('fullscreen');
   if (fs.__fit) requestAnimationFrame(fs.__fit);
+});
+
+// ---------------------------------------------------------------------------
+// Exportar el documento abierto a PDF
+// VS Code bloquea window.print() dentro de un webview, así que el PDF no puede
+// salir de acá adentro; y vendorizar una librería de PDF significaría rasterizar
+// el documento (texto no seleccionable, diagramas pixelados al zoom) más ~1 MB
+// de assets, justo lo contrario del "sin dependencias" del proyecto. En vez de
+// eso se serializa lo que ya está en pantalla —incluidos los SVG que mermaid
+// generó— a un HTML autocontenido; el host lo escribe en disco y lo abre en el
+// navegador del sistema con el diálogo de impresión, donde "Guardar como PDF"
+// produce un PDF con texto real y diagramas vectoriales.
+// ---------------------------------------------------------------------------
+
+// Se agrega después del stylesheet del visor (que se reusa tal cual) para
+// pisarlo: lo de la pantalla —fondo, marco, scroll— no aplica a una hoja.
+const EXPORT_CSS = `
+  html, body { height: auto; }
+  body {
+    margin: 0;
+    padding: 22px 20px 40px;
+    background: #fff;
+    background-image: none;
+    /* Sin esto el navegador imprime en blanco los fondos: se irían las celdas
+       de encabezado, los bloques de código y las fichas del panel de status. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .export-page { max-width: 900px; margin: 0 auto; }
+  .export-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 0 0 24px;
+    padding-bottom: 10px;
+    border-bottom: 3px solid var(--wood-dark);
+  }
+  .export-head .doc-title { font-family: var(--heading-font); font-size: 15px; line-height: 1.4; color: var(--ink); }
+  .export-head .doc-meta { font-family: var(--mono-font); font-size: 11px; color: var(--muted); margin-top: 5px; }
+  .doc-inner { max-width: none; }
+
+  /* El frame de zoom/pan no significa nada en papel: queda el SVG solo, a lo
+     ancho de la página. El max-height es para los diagramas altos y angostos,
+     que si no se llevarían dos hojas. */
+  .export-diagram { margin: 18px 0; padding: 10px; border: 2px solid var(--wood-dark); background: var(--panel); text-align: center; }
+  .export-diagram svg { width: 100%; height: auto; max-height: 245mm; }
+
+  /* Las reglas de la tabla del listado (thead th / tbody td, sin scope) llegan
+     también a las tablas del markdown: en pantalla la diferencia es sutil, pero
+     en la hoja dejan los encabezados en blanco sobre fondo claro. */
+  .doc-inner thead th {
+    position: static;
+    color: var(--ink);
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: normal;
+    white-space: normal;
+    text-shadow: none;
+  }
+
+  .export-hint {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    max-width: 900px;
+    margin: 0 auto 20px;
+    padding: 10px 14px;
+    border: 2px solid var(--wood-dark);
+    background: var(--parchment-alt);
+    font-size: 13px;
+  }
+  .export-hint button { margin-left: auto; }
+
+  @page { size: A4; margin: 14mm 12mm; }
+
+  @media print {
+    body { padding: 0; }
+    .export-hint { display: none; }
+    h1, h2, h3 { break-after: avoid; page-break-after: avoid; }
+    pre, blockquote, table, .export-diagram, .status-panel, .status-stage, .status-spec {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+  }
+`;
+
+// El auto-print espera a las fuentes: si el diálogo se abre antes, la primera
+// vista previa sale medida con la fuente de fallback.
+const EXPORT_SCRIPT = `
+  var again = document.querySelector('.export-hint button');
+  if (again) again.addEventListener('click', function () { window.print(); });
+  window.addEventListener('load', function () {
+    var ready = (document.fonts && document.fonts.ready) || Promise.resolve();
+    Promise.resolve(ready).catch(function () {}).then(function () {
+      setTimeout(function () { window.print(); }, 150);
+    });
+  });
+`;
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+// Copia del documento en pantalla con las affordances de edición/navegación
+// resueltas a su forma impresa.
+function printableDocClone() {
+  const source = el('doc').querySelector('.doc-inner');
+  if (!source) return null;
+
+  // El atributo `checked` no acompaña a la propiedad cuando se tilda un
+  // checkbox, y cloneNode solo copia atributos: sin esto los tildes hechos
+  // durante la sesión no llegarían al PDF.
+  source.querySelectorAll('input[type="checkbox"]')
+    .forEach((cb) => cb.toggleAttribute('checked', cb.checked));
+
+  const clone = source.cloneNode(true);
+
+  clone.querySelectorAll('.diagram-frame').forEach((frame) => {
+    const svg = frame.querySelector('.diagram-pan svg');
+    const figure = document.createElement('figure');
+    figure.className = 'export-diagram';
+    if (svg) {
+      const copy = svg.cloneNode(true);
+      // initDiagramZoom le fijó el ancho natural en px; en la hoja el ancho lo
+      // manda la página, así que se lo devuelve a su viewBox.
+      copy.removeAttribute('style');
+      copy.removeAttribute('width');
+      copy.removeAttribute('height');
+      figure.appendChild(copy);
+    }
+    frame.replaceWith(figure);
+  });
+
+  clone.querySelectorAll('.other-editable').forEach((span) => {
+    const text = span.textContent.replace(/\s+/g, ' ').trim();
+    span.replaceWith(document.createTextNode(` ${text || '______'}`));
+  });
+
+  return clone;
+}
+
+// El stylesheet del visor se reusa entero —así el PDF sale con la misma piel
+// que se está mirando— pero por CSSOM y no como texto, para poder descartar las
+// dos partes que solo tienen sentido dentro del webview: los @font-face (URIs
+// vscode-resource, que no resuelven desde un file://; el host los reemplaza por
+// las mismas fuentes en base64, y hacen falta porque mermaid midió las cajas de
+// los nodos con ellas) y el layout angosto, cuyo breakpoint de 760px dispararía
+// en la hoja —una A4 dejan ~190mm útiles— y convertiría las tablas del markdown
+// en las fichas apiladas del sidebar.
+function appCssForExport() {
+  return [...el('app-css').sheet.cssRules]
+    .filter((rule) => !(rule instanceof CSSFontFaceRule))
+    .filter((rule) => !(rule instanceof CSSMediaRule && rule.conditionText.includes('max-width')))
+    .map((rule) => rule.cssText)
+    .join('\n');
+}
+
+function buildExportPayload() {
+  const task = state.tasks.find((t) => t.id === state.selectedId);
+  if (!task || !state.selectedFile) return null;
+  const clone = printableDocClone();
+  if (!clone) return null;
+
+  const slug = `${task.id}-${state.selectedFile.replace(/\.md$/, '')}`;
+  // El tema es lo único que se rescata de las clases del body: 'tasks-collapsed'
+  // es estado de la sesión, no piel.
+  const themeClass = [...document.body.classList].filter((c) => c.startsWith('theme-')).join(' ');
+  const appCss = appCssForExport();
+  const exported = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(slug)}</title>
+<style>{{fontFaces}}</style>
+<style>${appCss}</style>
+<style>${EXPORT_CSS}</style>
+</head>
+<body class="${themeClass}">
+<div class="export-hint">
+  <span>Elegí <strong>Guardar como PDF</strong> (destino de impresión) para quedarte con el archivo.</span>
+  <button type="button">Imprimir</button>
+</div>
+<div class="export-page">
+  <div class="export-head">
+    <div>
+      <div class="doc-title">${escapeHtml(task.title)}</div>
+      <div class="doc-meta">${escapeHtml(state.selectedProject)} · ${escapeHtml(task.id)} · ${escapeHtml(state.selectedFile)}</div>
+    </div>
+    <div class="doc-meta">Exportado el ${escapeHtml(exported)}</div>
+  </div>
+  ${clone.outerHTML}
+</div>
+<script>${EXPORT_SCRIPT}<\/script>
+</body>
+</html>`;
+
+  return { html, fileBase: slug };
+}
+
+el('export-doc').addEventListener('click', async () => {
+  const btn = el('export-doc');
+  const payload = buildExportPayload();
+  if (!payload) return;
+  btn.disabled = true;
+  try {
+    await callHost('exportDoc', payload);
+    showToast('Documento abierto en el navegador: elegí "Guardar como PDF"');
+  } catch (err) {
+    showToast(`No se pudo exportar: ${err.message}`, true);
+  } finally {
+    btn.disabled = !state.selectedFile;
+  }
 });
 
 // ---------------------------------------------------------------------------

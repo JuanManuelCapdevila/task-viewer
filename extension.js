@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 const core = require('./lib/core');
 
@@ -89,6 +90,71 @@ function buildHtml(webview, extensionUri) {
     .replace(/{{spaceGrotesk400Uri}}/g, vendorUri('fonts', 'space-grotesk-400.woff2'))
     .replace(/{{spaceGrotesk700Uri}}/g, vendorUri('fonts', 'space-grotesk-700.woff2'))
     .replace(/{{vt323Uri}}/g, vendorUri('fonts', 'vt323-400.woff2'));
+}
+
+// ---------------------------------------------------------------------------
+// Exportar un documento a PDF
+// El webview arma el HTML (ver "Exportar el documento abierto a PDF" en
+// media/webview.html) y acá se lo escribe en un temporal y se lo abre en el
+// navegador del sistema, que es quien sabe imprimir a PDF: VS Code no expone
+// ninguna API para generarlo y bloquea window.print() dentro del webview.
+// ---------------------------------------------------------------------------
+
+// El HTML exportado se abre fuera del webview (file://), donde las URIs
+// vscode-resource de los @font-face no resuelven. Si la fuente no carga, el
+// navegador remide el texto y los diagramas —cuyas cajas mermaid calculó con
+// esa fuente— quedan con las etiquetas desbordadas, así que viajan embebidas.
+// Solo las del tema activo: son las únicas que el stylesheet va a pedir.
+const THEME_FONT_FILES = {
+  pixel: [
+    ['Pixelify Sans', 400, 'pixelify-sans-400.woff2'],
+    ['Pixelify Sans', 500, 'pixelify-sans-500.woff2'],
+    ['Pixelify Sans', 600, 'pixelify-sans-600.woff2'],
+    ['Pixelify Sans', 700, 'pixelify-sans-700.woff2'],
+    ['Press Start 2P', 400, 'press-start-2p-400.woff2']
+  ],
+  'neo-retro': [
+    ['Space Grotesk', 400, 'space-grotesk-400.woff2'],
+    ['Space Grotesk', 700, 'space-grotesk-700.woff2'],
+    ['Archivo Black', 400, 'archivo-black-400.woff2'],
+    ['VT323', 400, 'vt323-400.woff2']
+  ],
+  clean: [] // usa la tipografía del sistema, no hay nada que embeber
+};
+
+function exportFontFaces(extensionUri, theme) {
+  return (THEME_FONT_FILES[theme] || []).map(([family, weight, file]) => {
+    const fsPath = vscode.Uri.joinPath(extensionUri, 'media', 'vendor', 'fonts', file).fsPath;
+    const data = fs.readFileSync(fsPath).toString('base64');
+    return `@font-face { font-family: '${family}'; font-style: normal; font-weight: ${weight}; src: url("data:font/woff2;base64,${data}") format('woff2'); }`;
+  }).join('\n');
+}
+
+// El nombre sale del id de la task y del .md abierto, pero termina siendo una
+// ruta: se sanea igual, como cualquier otro segmento que venga del webview.
+function exportFileName(base) {
+  const clean = String(base || '').replace(/[^\w.-]+/g, '-').replace(/^[-.]+|-+$/g, '');
+  return `${clean || 'documento'}.html`;
+}
+
+async function exportDoc(context, payload) {
+  const html = String(payload.html)
+    .replace('{{fontFaces}}', () => exportFontFaces(context.extensionUri, resolveTheme()));
+
+  const dir = path.join(os.tmpdir(), 'task-guardian-export');
+  fs.mkdirSync(dir, { recursive: true });
+  // Nombre estable por documento: reexportar pisa el anterior en vez de dejar
+  // una pila de copias en el temporal.
+  const file = path.join(dir, exportFileName(payload.fileBase));
+  fs.writeFileSync(file, html, 'utf8');
+
+  const opened = await vscode.env.openExternal(vscode.Uri.file(file));
+  if (!opened) {
+    vscode.window.showWarningMessage(
+      `No se pudo abrir el navegador. El documento quedó en ${file}: abrilo e imprimí a PDF.`
+    );
+  }
+  return { ok: opened, path: file };
 }
 
 // La raíz se recuerda por workspace: es una preferencia de "para este
@@ -306,11 +372,13 @@ function wireWebview(webview, context) {
   webview.html = buildHtml(webview, context.extensionUri);
   webview.onDidReceiveMessage(async (msg) => {
     try {
-      // 'watch' se atiende acá y no en handleMessage porque necesita el
-      // webview: el watcher es por vista, no global.
-      const result = msg.type === 'watch'
-        ? watchTask(webview, msg.payload.project, msg.payload.task)
-        : await handleMessage(path.basename(context.extensionPath), msg);
+      // 'watch' y 'exportDoc' se atienden acá y no en handleMessage porque no
+      // les alcanza con la carpeta raíz: uno necesita el webview (el watcher es
+      // por vista, no global) y el otro las fuentes de la extensión.
+      let result;
+      if (msg.type === 'watch') result = watchTask(webview, msg.payload.project, msg.payload.task);
+      else if (msg.type === 'exportDoc') result = await exportDoc(context, msg.payload);
+      else result = await handleMessage(path.basename(context.extensionPath), msg);
       webview.postMessage({ id: msg.id, result });
     } catch (err) {
       webview.postMessage({ id: msg.id, error: err.message });
