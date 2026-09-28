@@ -1,7 +1,7 @@
 {
-  "name": "task-viewer",
+  "name": "task-guardian",
   "displayName": "Task Guardian",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "private": true,
   "description": "Visor de specs y tasks en Markdown: navega las carpetas .tasks/ de todos tus proyectos, renderiza diagramas Mermaid y se refresca solo cuando los archivos cambian.",
   "publisher": "JuanCapdevila",
