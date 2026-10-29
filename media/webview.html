@@ -365,6 +365,30 @@
     white-space: nowrap;
   }
   .export-btn:disabled { opacity: .45; cursor: default; filter: none; }
+  /* Solapa a menú hamburguesa: nace oculta, el @media angosto la muestra en
+     lugar de .tabs (que ahí deja de mostrarse en línea y pasa a desplegable). */
+  .tabs-toggle {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    color: var(--ink);
+    box-shadow: none;
+    text-shadow: none;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .tabs-toggle:hover { filter: none; background: var(--accent-bg); }
+  .tabs-toggle:active { transform: none; box-shadow: none; }
+  .tabs-toggle .burger { font-size: 14px; line-height: 1; }
+  .tabs-toggle .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tabs-toggle .caret { font-size: 10px; transition: transform .15s ease; }
+  body.tabs-open .tabs-toggle .caret { transform: rotate(90deg); }
   .tab {
     padding: 8px 14px;
     font-size: 12px;
@@ -797,6 +821,7 @@
     text-shadow: none;
   }
   body.theme-clean .tab:hover { filter: none; background: var(--wood-dark); }
+  body.theme-clean .tabs-toggle:hover { background: var(--wood-dark); color: var(--parchment); }
   body.theme-clean .tab.active { background: var(--parchment); border-color: var(--gold); }
   body.theme-clean .doc { background-image: none; }
   body.theme-clean .doc-inner h1 { border-bottom: 1px solid var(--wood-dark); }
@@ -884,15 +909,30 @@
     tbody td:nth-child(6) { grid-area: date; justify-self: end; font-size: 11px; color: var(--muted); }
     .gem { width: 22px; height: 22px; font-size: 12px; }
 
-    /* Con pocas solapas entran en dos renglones y se ven todas; scrollear
-       en horizontal para descubrir que había una "Diagramas" no se ve. */
-    .tabs { flex-wrap: wrap; overflow-x: visible; row-gap: 4px; padding: 8px 10px 0; }
-    .tab { padding: 6px 10px; font-size: 11px; }
-    /* Con las solapas ya en varios renglones, el botón compite por el ancho:
-       se va a su propio renglón, alineado a la derecha. */
+    /* Con un proyecto grande las solapas ya no entran ni envolviendo: en vez
+       de llenar la pantalla de renglones de botones, se pliegan detrás de un
+       botón hamburguesa y se listan en columna al abrirlo. */
     .tabs-bar { flex-wrap: wrap; }
-    .tabs { flex-basis: 100%; }
-    .export-btn { margin: 4px 10px 8px auto; padding: 5px 10px; font-size: 11px; }
+    .tabs-toggle { display: flex; order: 1; flex-basis: 100%; }
+    .tabs {
+      display: none;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 2px;
+      order: 3;
+      flex-basis: 100%;
+      padding: 0 10px 8px;
+      overflow-x: visible;
+    }
+    body.tabs-open .tabs { display: flex; }
+    .tab {
+      padding: 8px 10px;
+      font-size: 11px;
+      border: 2px solid var(--wood-darker);
+      border-radius: 0;
+      transform: none;
+    }
+    .export-btn { order: 2; margin: 4px 10px 8px auto; padding: 5px 10px; font-size: 11px; }
 
     .doc { padding: 16px 14px; }
     .empty { padding: 22px 16px; }
@@ -963,6 +1003,11 @@
   </div>
   <div class="viewer">
     <div class="tabs-bar">
+      <button type="button" class="tabs-toggle" id="toggle-tabs" aria-expanded="false" aria-controls="tabs">
+        <span class="burger" aria-hidden="true">☰</span>
+        <span class="label" id="tabs-toggle-label">Documentos</span>
+        <span class="caret" aria-hidden="true">▸</span>
+      </button>
       <div class="tabs" id="tabs"></div>
       <button type="button" class="export-btn" id="export-doc" disabled title="Exportar este documento a PDF">
         <span class="deco">🖨️</span> PDF
@@ -1077,6 +1122,11 @@ const LAST_PROJECT_KEY = 'task-viewer:last-project';
 const state = { genesysDir: null, projects: [], selectedProject: null, tasks: [], selectedId: null, selectedFile: null, fileCache: new Map(), docStale: false };
 
 const el = (id) => document.getElementById(id);
+
+function setTabsOpen(open) {
+  document.body.classList.toggle('tabs-open', open);
+  el('toggle-tabs').setAttribute('aria-expanded', String(open));
+}
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -1246,9 +1296,12 @@ function renderTabs() {
     const tab = document.createElement('div');
     tab.className = 'tab' + (file.name === state.selectedFile ? ' active' : '');
     tab.textContent = tabLabel(file, task);
-    tab.addEventListener('click', () => selectTask(task.id, file.name));
+    tab.addEventListener('click', () => { setTabsOpen(false); selectTask(task.id, file.name); });
     tabs.appendChild(tab);
   });
+
+  const activeFile = task.files.find((f) => f.name === state.selectedFile);
+  el('tabs-toggle-label').textContent = activeFile ? tabLabel(activeFile, task) : 'Documentos';
 
   return renderDoc();
 }
@@ -2086,6 +2139,10 @@ el('project-select').addEventListener('change', (e) => selectProject(e.target.va
 
 el('toggle-table').addEventListener('click', () => {
   setTasksCollapsed(!document.body.classList.contains('tasks-collapsed'));
+});
+
+el('toggle-tabs').addEventListener('click', () => {
+  setTabsOpen(!document.body.classList.contains('tabs-open'));
 });
 // Se restaura antes de cargar datos para que no se vea el listado abrirse y
 // cerrarse en el arranque.
